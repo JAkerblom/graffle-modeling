@@ -1,0 +1,10 @@
+#OmniGraffle
+
+= Introduction =
+
+OmniGraffle is the most popular diagramming application for OS X.
+
+
+= Details =
+
+[http://www.omnigroup.com/applications/OmniGraffle/ OmniGraffle product page]
