@@ -10,7 +10,6 @@ import java.util.List;
 import org.epistem.graffle.OGGraphic;
 import org.epistem.graffle.OGSheet;
 import org.epistem.graffle.OmniGraffleDoc;
-import org.epistem.rdf.util.JenaToGraphviz;
 
 import com.hp.hpl.jena.datatypes.xsd.XSDDatatype;
 import com.hp.hpl.jena.rdf.model.*;
@@ -115,7 +114,25 @@ public class GraffleToRDF {
             model.add( res, prop( og_child ), translate( graphic ) );
         }
         
+        computeIntersections( sheet.graphics() );
+        
         return res;
+    }
+
+    private void computeIntersections( List<OGGraphic> graphics ) {
+        for( OGGraphic g : graphics ) {
+            for( OGGraphic h : graphics ) {
+                if( g == h ) continue;
+                
+                if( g.bounds().intersects( h.bounds() )) {
+                    model.add( graphic( g.id() ), prop( og_intersects ), graphic( h.id() ) );
+                }
+                
+                if( g.bounds().contains( h.bounds() ) ) {
+                    model.add( graphic( g.id() ), prop( og_contains ), graphic( h.id() ) );
+                }
+            }
+        }
     }
     
     private void wireUp( Resource shape, String text, String note ) {
@@ -198,11 +215,13 @@ public class GraffleToRDF {
         
         if( head > 0 ) model.add( res, prop( og_head ), graphic( head ) );
         if( tail > 0 ) model.add( res, prop( og_tail ), graphic( tail ) );
-        
+
         int label = graphic.labelLineId();
         if( label > 0 ) model.add( graphic( label ), prop( og_label ), res );
+
         
         switch( graphic.graphicClass() ) {
+                
             case Group:
                 List<OGGraphic> kids = graphic.graphics();
                 

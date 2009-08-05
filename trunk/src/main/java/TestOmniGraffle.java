@@ -30,7 +30,7 @@ public class TestOmniGraffle {
     
     public static void main(String[] args) throws Exception {
         
-        og = new OmniGraffleDoc( new File( "/Users/nickmain/Desktop/test.graffle" ) );
+        og = new OmniGraffleDoc( new File( "test-diagrams/test.graffle" ) );
         
         out.println( "Created  --> " + og.creationDate() );
         out.println( "Creator  --> " + og.creator() );

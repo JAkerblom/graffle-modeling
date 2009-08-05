@@ -30,9 +30,17 @@ public enum GraffleURI {
     og_item,
     og_value,
     
+    og_intersects,
+    og_contains,
+    
     og_head,
     og_tail,
     og_label,
+    og_labelRef,
+    og_firstLabel,
+    og_nextLabel,
+    og_headLabel,
+    og_tailLabel,
     
     og_child,
     og_background,
