@@ -63,6 +63,20 @@ public final class OGGraphic {
     }
     
     /**
+     * Get the stroke style (zero is solid)
+     */
+    public int strokePattern() {
+        Map<String,Object> style = (Map<String,Object>) dict.get( "Style" );
+        if( style == null ) return 0;
+        Map<String,Object> stroke = (Map<String,Object>) style.get( "stroke" );
+        if( stroke == null ) return 0;
+
+        Integer pattern = (Integer) stroke.get( "Pattern" );
+        if( pattern == null ) return 0;
+        return pattern;
+    }
+    
+    /**
      * Get the graphic's id
      */
     public int id() {

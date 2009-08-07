@@ -30,6 +30,8 @@ public class GraffleToRDF {
     
     private final OmniGraffleDoc doc;
     private Resource ogEnd;
+    private Resource ogSolid;
+    private Resource ogDashed;    
     
     /**
      * Use an existing model
@@ -219,7 +221,6 @@ public class GraffleToRDF {
         int label = graphic.labelLineId();
         if( label > 0 ) model.add( graphic( label ), prop( og_label ), res );
 
-        
         switch( graphic.graphicClass() ) {
                 
             case Group:
@@ -312,7 +313,16 @@ public class GraffleToRDF {
                 }
                 model.add( prevCol, prop( og_nextCol ), ogEnd() );
                 
-                break;            
+                break;
+                
+            default:
+                if( graphic.strokePattern() == 0 ) {
+                    model.add( res, prop( og_stroke ), ogSolid() );
+                }
+                else {
+                    model.add( res, prop( og_stroke ), ogDashed() );                    
+                }
+                break;
         }
         
         return res;        
@@ -330,11 +340,18 @@ public class GraffleToRDF {
     }
         
     private Resource ogEnd() {
-        if( ogEnd == null ) {
-            ogEnd = model.createResource( og_end.uri );
-        }
-        
+        if( ogEnd == null ) ogEnd = model.createResource( og_end.uri );
         return ogEnd;
+    }
+
+    private Resource ogSolid() {
+        if( ogSolid == null ) ogSolid = model.createResource( og_solid.uri );
+        return ogSolid;
+    }
+
+    private Resource ogDashed() {
+        if( ogDashed == null ) ogDashed = model.createResource( og_dashed.uri );
+        return ogDashed;
     }
     
     /**

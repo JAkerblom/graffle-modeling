@@ -29,7 +29,10 @@ public enum GraffleURI {
     og_text,
     og_item,
     og_value,
-    
+    og_solid,
+    og_dashed,
+    og_stroke,
+
     og_intersects,
     og_contains,
     
