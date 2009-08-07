@@ -4,12 +4,14 @@ import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.Map;
 
 import javax.swing.JFrame;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
-import javax.swing.text.DefaultStyledDocument;
 import javax.swing.text.Element;
 
 import org.epistem.graffle.OGGraphic;
@@ -117,6 +119,13 @@ public class TestOmniGraffle {
 //                    printElement( doc.getDefaultRootElement());
 //                }
                 break;
+        }
+        
+        if( graphic.strokePattern() == 0 ) {
+            out.println( "Solid Stroke" );
+        }
+        else {
+            out.println( "Stroke Pattern " + graphic.strokePattern() );
         }
         
         String note = graphic.notes();
