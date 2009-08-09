@@ -1,0 +1,24 @@
+<project name="Project Build Targets">
+
+	<condition property="mvn-prefix" value="/C mvn " else="" >
+	    <os family="windows" />
+	</condition>
+
+    <condition property="mvn-exec" value="cmd" else="mvn" >
+        <os family="windows" />
+    </condition>
+
+	<!-- Build a unified Jar with all dependencies exploded -->
+    <target name="jar-with-dependencies">
+        <antcall target="mvn">
+            <param name="mvn-args" value="assembly:assembly -DdescriptorId=jar-with-dependencies" />
+        </antcall>
+    </target>
+
+	<target name="mvn">
+	    <exec executable="${mvn-exec}">
+	        <arg line="${mvn-prefix} ${mvn-args}" />
+	    </exec>		   
+	</target>
+	
+</project>

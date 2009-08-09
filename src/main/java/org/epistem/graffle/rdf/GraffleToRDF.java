@@ -5,11 +5,14 @@ import static org.epistem.graffle.rdf.GraffleURI.*;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.epistem.graffle.OGGraphic;
 import org.epistem.graffle.OGSheet;
 import org.epistem.graffle.OmniGraffleDoc;
+import org.epistem.graffle.OGGraphic.GraphicClass;
 
 import com.hp.hpl.jena.datatypes.xsd.XSDDatatype;
 import com.hp.hpl.jena.rdf.model.*;
@@ -55,19 +58,13 @@ public class GraffleToRDF {
      */
     private void translate() {
 
-        String subject = doc.subject();
-        if( subject.startsWith( "http://" ) ) {
-            documentPrefix = subject;
-        }
-        else {
-            documentPrefix = URIPrefix.epi + doc.file().getName() + "#";
-        }
-        
-        model.setNsPrefix( "doc", documentPrefix );
+        documentPrefix = URIPrefix.epi + doc.file().getName() + "#";
         
         for( URIPrefix prefix : URIPrefix.values() ) {
             model.setNsPrefix( prefix.name(), prefix.prefix );            
         }
+        
+        findURIPrefixes();
         
         Resource docRes = model.createResource( og_document.uri );
         
@@ -94,20 +91,49 @@ public class GraffleToRDF {
         for( String s : doc.organizations() ) model.add( docRes, prop( og_organization ), s );
         for( String s : doc.projects()      ) model.add( docRes, prop( og_project      ), s );
 
-        //load prefixes from the keywords
-        for( String s : doc.keywords()) {
-            if( s.contains( ":" ) ) {
-                String prefix = s.substring( 0, s.indexOf( ":" ) ).trim();
-                String uri    = s.substring( s.indexOf( ":" ) + 1 ).trim();
-                model.setNsPrefix( prefix, uri );
-            }
-        }
-        
         for( OGSheet sheet : doc.sheets() ) {
             model.add( docRes, prop( og_sheet ), translate( sheet ) );
         }
     }
 
+    /**
+     * Find all the URI prefix declarations in the document
+     */
+    private void findURIPrefixes() {
+        for( OGSheet sheet : doc.sheets() ) {
+            Set<OGGraphic> tables = new HashSet<OGGraphic>();
+            
+            for( OGGraphic g : sheet.graphics() ) {
+                
+                if( g.graphicClass() == GraphicClass.TableGroup 
+                 && "URI Prefix".equalsIgnoreCase( g.notes() )) {
+                    
+                    List<List<OGGraphic>> rows = g.tableRows();
+                    for( List<OGGraphic> row : rows ) {
+                        if( row.size() != 2 ) continue;
+                        
+                        String prefix = row.get( 0 ).text().trim();
+                        String uri    = row.get( 1 ).text().trim();
+                        
+                        if( prefix.endsWith( "*" ) ) {
+                            prefix = prefix.replace( '*', ' ' ).trim();
+                            documentPrefix = uri;
+                        }
+                        
+                        model.setNsPrefix( prefix, uri );
+                    }
+                    
+                    tables.add( g );
+                }
+            }
+            
+            //remove the tables since they are not part of the model
+            for( OGGraphic g : tables ) {
+                sheet.graphics().remove( g );
+            }            
+        }        
+    }
+    
     private Resource translate( OGSheet sheet ) {
         Resource res = model.createResource();
         wireUp( res, sheet.title(), sheet.notes() );
@@ -366,7 +392,7 @@ public class GraffleToRDF {
    //     new JenaToGraphviz( trans.model ).write( "/Users/nickmain/Desktop/test.dot" );
 
         if( rdfFile == null ) {
-            trans.model.write( System.out, "N3" );
+            trans.model.write( System.out, "RDF/XML" );
             System.out.flush();
             return;
         }
