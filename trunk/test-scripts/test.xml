@@ -1,0 +1,24 @@
+<project name="Test Scripts" basedir="..">
+
+	<path id="cp" >
+		<path location="target/classes" />
+        <fileset dir="target" includes="*.jar"/>
+    </path>
+	
+	<taskdef resource="org/epistem/graffle/rdf/ant/antlib.xml" classpathref="cp"/>
+
+    <target name="load-and-dump-test">
+        <load-og   file="test-diagrams/test.graffle" />
+    	<write-rdf format="N3"/>    	
+    </target>
+	
+    <target name="sparql-test">
+        <load-og   file="test-diagrams/test.graffle" />
+        <construct-rdf target="test" sparql="test-scripts/test.sparql" query="test" />
+        <write-rdf model="test" format="N3"/>
+        <graphviz-rdf file="target/test.dot" model="test" />
+        <construct-rdf model="test" target="test2" query="test2" />
+        <write-rdf model="test2" format="N3"/>
+    </target>
+	
+</project>

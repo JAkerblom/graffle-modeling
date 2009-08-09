@@ -1,0 +1,27 @@
+PREFIX test:   <http://test/test#>
+PREFIX og:     <http://www.epistem.org/og/20090801#>
+
+## test
+CONSTRUCT {
+
+    ?e1 ?prop ?e2
+}
+WHERE {
+
+    ?line  og:tail  ?s1 .
+    ?line  og:head  ?s2 .
+    ?line  og:label ?label .
+    ?label og:item  ?prop .
+    ?s1    og:item  ?e1 .
+    ?s2    og:item  ?e2 .
+}
+
+## test2
+CONSTRUCT {
+
+    ?e1 test:flubber ?e2
+}
+WHERE {
+
+    ?e1 test:foo ?e2
+}

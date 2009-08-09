@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<antlib>
+    <taskdef name="load-og"       classname="org.epistem.graffle.rdf.ant.LoadOGIntoModelTask" />
+    <taskdef name="write-rdf"     classname="org.epistem.graffle.rdf.ant.WriteRDFModelTask" />
+    <taskdef name="construct-rdf" classname="org.epistem.graffle.rdf.ant.SparqlConstructModelTask" />
+    <taskdef name="graphviz-rdf"  classname="org.epistem.graffle.rdf.ant.GraphvizModelTask" />
+</antlib>
