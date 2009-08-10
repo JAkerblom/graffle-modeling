@@ -2,7 +2,8 @@ package org.epistem.rdf.util;
 
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.Iterator;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.epistem.io.IndentingPrintWriter;
 import org.epistem.util.GraphvizWriter;
@@ -41,24 +42,11 @@ public class JenaToGraphviz {
     private void write() {
         gviz.startDiGraph( "model" );
         
+        Set<String> nodeNames = new HashSet<String>();
+        
         for( NodeIterator it = model.listObjects(); it.hasNext(); ) {
-            RDFNode node = it.nextNode();
-            
-            if( node.isAnon() ) {
-                gviz.declareNode( "node" + node.hashCode(), "node", "#ffcccc" );
-            }
-            else if( node.isURIResource() ) {
-                Resource res = (Resource) node;
-                gviz.declareNode( "node" + node.hashCode(), res.getLocalName(), "#ccccff" );
-            }
-            else if( node.isLiteral() ) {
-                Literal lit = (Literal) node;
-                gviz.declareNode( "lit-" + lit.toString().hashCode(), lit.toString(), "#ffffcc" );
-            }
-            else if( node.isResource() ) {
-                Resource res = (Resource) node;
-                gviz.declareNode( "node" + node.hashCode(), res.getLocalName(), "#ccccff" );                
-            }
+            RDFNode node = it.nextNode();         
+            nodeNames.add( declareNode( node ) );
         }
 
         for( StmtIterator it = model.listStatements(); it.hasNext(); ) {
@@ -71,12 +59,38 @@ public class JenaToGraphviz {
                 target = "lit-" + object.toString().hashCode();
             }
             
-            gviz.arc( "node" + stat.getSubject().hashCode(),
+            Resource subject = stat.getSubject();
+            String subjName = "node" + subject.hashCode();
+            if( ! nodeNames.contains( subjName ) ) declareNode( subject );
+            
+            gviz.arc( subjName,
                       target,
                       stat.getPredicate().getLocalName());
         }
         
         gviz.endDiGraph();
         gviz.close();
+    }
+    
+    private String declareNode( RDFNode node ) {
+        String nodeName = "node" + node.hashCode();
+        
+        if( node.isAnon() ) {
+            gviz.declareNode( nodeName, "node", "#ffcccc" );
+        }
+        else if( node.isURIResource() ) {
+            Resource res = (Resource) node;
+            gviz.declareNode( nodeName, res.getLocalName(), "#ccccff" );
+        }
+        else if( node.isLiteral() ) {
+            Literal lit = (Literal) node;
+            gviz.declareNode( nodeName = "lit-" + lit.toString().hashCode(), lit.toString(), "#ffffcc" );
+        }
+        else if( node.isResource() ) {
+            Resource res = (Resource) node;
+            gviz.declareNode( nodeName, res.getLocalName(), "#ccccff" );                
+        }
+        
+        return nodeName;
     }
 }

@@ -4,4 +4,5 @@
     <taskdef name="write-rdf"     classname="org.epistem.graffle.rdf.ant.WriteRDFModelTask" />
     <taskdef name="construct-rdf" classname="org.epistem.graffle.rdf.ant.SparqlConstructModelTask" />
     <taskdef name="graphviz-rdf"  classname="org.epistem.graffle.rdf.ant.GraphvizModelTask" />
+    <taskdef name="freemarker-rdf"  classname="org.epistem.graffle.rdf.ant.FreemarkerModelTask" />
 </antlib>

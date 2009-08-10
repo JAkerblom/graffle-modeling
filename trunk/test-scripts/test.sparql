@@ -25,3 +25,53 @@ WHERE {
 
     ?e1 test:foo ?e2
 }
+
+## list-first
+CONSTRUCT {
+
+    ?e1 ?prop ?node .
+    ?node test:target ?e2 .
+}
+WHERE {
+
+    ?s1    og:item  ?e1 .
+    ?line  og:label ?label .
+    ?label og:item  ?prop .
+    ?s1    og:firstOut ?node .
+    ?node  og:line  ?line .
+    ?line  og:head  ?targ .
+    ?targ  og:item  ?e2 .
+}
+
+## list-body
+CONSTRUCT {
+
+    ?prev test:next   ?node .
+    ?node test:target ?e2 .
+}
+WHERE {
+
+    ?prev og:nextOut ?node .
+    ?node og:line    ?line .
+    ?line og:head    ?targ .
+    ?targ og:item    ?e2 .   
+}
+
+## list-end
+CONSTRUCT {
+
+    ?node test:next test:end .
+}
+WHERE {
+
+    ?node og:nextOut og:end .
+}
+
+## template-test
+#
+# Get all prop relationships based on line label
+#
+SELECT ?a ?prop ?b
+WHERE {
+    ?a  ?prop ?b .
+}

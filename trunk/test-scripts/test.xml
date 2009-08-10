@@ -21,4 +21,14 @@
         <write-rdf model="test2" format="N3"/>
     </target>
 	
+    <target name="prop-seq-test">
+        <load-og   file="test-diagrams/prop-sequence-test.graffle" />
+        <construct-rdf target="test" query="list-first" sparql="test-scripts/test.sparql"/>
+        <construct-rdf target="test" query="list-body" />
+        <construct-rdf target="test" query="list-end" />
+        <write-rdf model="test" format="N3"/>        
+        <graphviz-rdf model="test" file="target/test.dot" />
+    	<freemarker-rdf model="test" template="test-scripts/test.ftl" sparql="test-scripts/test.sparql" />
+    </target>
+	
 </project>
