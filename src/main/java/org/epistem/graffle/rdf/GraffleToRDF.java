@@ -5,9 +5,7 @@ import static org.epistem.graffle.rdf.GraffleURI.*;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import org.epistem.graffle.OGGraphic;
 import org.epistem.graffle.OGSheet;
@@ -134,7 +132,10 @@ public class GraffleToRDF {
         }        
     }
     
-    private Resource translate( OGSheet sheet ) {
+    private final Map<Integer, Collection<OGGraphic>> headLines = new HashMap<Integer, Collection<OGGraphic>>(); 
+    private final Map<Integer, Collection<OGGraphic>> tailLines = new HashMap<Integer, Collection<OGGraphic>>(); 
+    
+    private Resource translate( OGSheet sheet ) {        
         Resource res = model.createResource();
         wireUp( res, sheet.title(), sheet.notes() );
         
@@ -143,10 +144,70 @@ public class GraffleToRDF {
         }
         
         computeIntersections( sheet.graphics() );
+        createCommonNoteLineLists();
         
         return res;
     }
 
+    /**
+     * Create the lists of lines sharing common notes
+     */
+    private void createCommonNoteLineLists() {
+        makeLineLists( headLines, prop( og_firstIn ), prop( og_nextIn ) );
+        makeLineLists( tailLines, prop( og_firstOut ), prop( og_nextOut ) );
+                
+        headLines.clear();
+        tailLines.clear();
+    }
+    
+    private void makeLineLists( Map<Integer, Collection<OGGraphic>> lineMap, Property propFirst, Property propNext ) {
+        for( Integer targetId : lineMap.keySet() ) {
+            Collection<OGGraphic> lines = lineMap.get( targetId );
+            Resource target = graphic( targetId );
+            
+            Map<String, Collection<OGGraphic>> linesByNote = collectLinesByNote( lines );
+            
+            for( Collection<OGGraphic> lineSet : linesByNote.values() ) {
+                Resource prevNode = null;
+                
+                for( OGGraphic lineOGG : lineSet ) {
+                    Resource lineRes = graphic( lineOGG.id() );
+                    
+                    Resource node = model.createResource();
+                    model.add( node, prop( og_line ), lineRes );
+                    
+                    if( prevNode == null ) {
+                        model.add( target, propFirst, node );
+                    }
+                    else {
+                        model.add( prevNode, propNext, node );                        
+                    }
+                    
+                    prevNode = node;
+                }                
+                
+                model.add( prevNode, propNext, ogEnd() );
+            }            
+        }        
+    }
+    
+    private Map<String, Collection<OGGraphic>> collectLinesByNote( Collection<OGGraphic> lines ) {
+        Map<String, Collection<OGGraphic>> linesByNote = new HashMap<String, Collection<OGGraphic>>();
+
+        for( OGGraphic line : lines ) {
+            String note = line.notes();
+            if( note != null ) {
+                note = unWS( note );
+                
+                Collection<OGGraphic> noteLines = linesByNote.get( note );
+                if( noteLines == null ) linesByNote.put( note, noteLines = new HashSet<OGGraphic>() );
+                noteLines.add( line );
+            }            
+        }
+        
+        return linesByNote;
+    }
+    
     private void computeIntersections( List<OGGraphic> graphics ) {
         for( OGGraphic g : graphics ) {
             for( OGGraphic h : graphics ) {
@@ -241,8 +302,19 @@ public class GraffleToRDF {
         int head = graphic.headId();
         int tail = graphic.tailId();
         
-        if( head > 0 ) model.add( res, prop( og_head ), graphic( head ) );
-        if( tail > 0 ) model.add( res, prop( og_tail ), graphic( tail ) );
+        if( head > 0 ) {
+            model.add( res, prop( og_head ), graphic( head ) );
+            Collection<OGGraphic> lines = headLines.get( head );
+            if( lines == null ) headLines.put( head, lines = new HashSet<OGGraphic>() );            
+            lines.add( graphic );
+        }
+        
+        if( tail > 0 ) {
+            model.add( res, prop( og_tail ), graphic( tail ) );
+            Collection<OGGraphic> lines = tailLines.get( tail );
+            if( lines == null ) tailLines.put( tail, lines = new HashSet<OGGraphic>() );            
+            lines.add( graphic );
+        }
 
         int label = graphic.labelLineId();
         if( label > 0 ) model.add( graphic( label ), prop( og_label ), res );
@@ -405,6 +477,6 @@ public class GraffleToRDF {
     }
     
     public static void main( String[] args ) throws Exception {
-        translate( "test-diagrams/test.graffle", null );
+        translate( "test-diagrams/prop-sequence-test.graffle", null );
     }
 }
