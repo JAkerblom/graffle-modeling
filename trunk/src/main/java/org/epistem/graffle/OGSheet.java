@@ -14,7 +14,8 @@ import static org.epistem.graffle.OGUtils.*;
 public final class OGSheet {
 
     private final Map<String,Object> dict;
-
+    private List<OGGraphic> oggraphics;
+    
     /**
      * The layers
      */
@@ -44,11 +45,13 @@ public final class OGSheet {
      * Get the graphics
      */
     public List<OGGraphic> graphics() {
-        List<OGGraphic> oggraphics = new ArrayList<OGGraphic>();
-        
-        List<Object> graphics = (List<Object>) dict.get( "GraphicsList" );
-        for( Object dict : graphics ) {
-            oggraphics.add( new OGGraphic( this, null, (Map<String,Object>) dict ) );
+        if( oggraphics == null ) {
+            oggraphics = new ArrayList<OGGraphic>();
+            
+            List<Object> graphics = (List<Object>) dict.get( "GraphicsList" );
+            for( Object dict : graphics ) {
+                oggraphics.add( new OGGraphic( this, null, (Map<String,Object>) dict ) );
+            }
         }
         
         return oggraphics;

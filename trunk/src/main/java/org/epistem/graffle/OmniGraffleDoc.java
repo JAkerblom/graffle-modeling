@@ -21,6 +21,7 @@ public final class OmniGraffleDoc {
     private final Map<String, Object> plist;    
 
     private Map<Integer,OGGraphic> graphics;
+    private List<OGSheet> ogsheets;
     
     /**
      * @param file the document file
@@ -132,16 +133,18 @@ public final class OmniGraffleDoc {
      * Get the sheets
      */
     public List<OGSheet> sheets() {
-        List<Object> sheets = (List<Object>) plist.get( "Sheets" );
-        
-        if( sheets == null ) {
-            sheets = new ArrayList<Object>();
-            sheets.add( plist );
-        }
-        
-        List<OGSheet> ogsheets = new ArrayList<OGSheet>();
-        for( Object dict : sheets ) {
-            ogsheets.add( new OGSheet( this, (Map<String,Object>) dict ) );
+        if( ogsheets == null ) {
+            List<Object> sheets = (List<Object>) plist.get( "Sheets" );
+            
+            if( sheets == null ) {
+                sheets = new ArrayList<Object>();
+                sheets.add( plist );
+            }
+            
+            ogsheets = new ArrayList<OGSheet>();
+            for( Object dict : sheets ) {
+                ogsheets.add( new OGSheet( this, (Map<String,Object>) dict ) );
+            }
         }
         
         return ogsheets;
