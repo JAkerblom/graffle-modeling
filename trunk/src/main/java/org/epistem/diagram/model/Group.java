@@ -20,6 +20,17 @@ public class Group extends Shape implements GraphicContainer {
         return children.iterator();
     }
     
+    /**
+     * Accept a visitor
+     */
+    public void accept( DiagramVisitor visitor ) {
+        if( visitor.visitGroupStart( this ) ) {
+            for( Graphic g : children ) g.accept( visitor );
+        }
+        
+        visitor.visitGroupEnd( this );
+    }
+    
     Group( OGGraphic ogg, GraphicContainer parent, Page page ) {
         super( ogg, parent, page );
         

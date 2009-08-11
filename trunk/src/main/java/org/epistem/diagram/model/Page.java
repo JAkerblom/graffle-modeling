@@ -22,6 +22,17 @@ public class Page implements GraphicContainer {
         return rootGraphics.iterator();
     }
     
+    /**
+     * Accept a visitor
+     */
+    public void accept( DiagramVisitor visitor ) {
+        if( visitor.visitPageStart( this ) ) {
+            for( Graphic g : rootGraphics ) g.accept( visitor );
+        }
+        
+        visitor.visitPageEnd( this );
+    }
+    
     Map<Integer, Graphic> graphics;
     
     Page( OGSheet sheet, Diagram diagram ) {

@@ -23,6 +23,17 @@ public class Table extends Graphic implements GraphicContainer {
         return new HashSet<Graphic>( cells ).iterator();
     }
 
+    /**
+     * Accept a visitor
+     */
+    public void accept( DiagramVisitor visitor ) {
+        if( visitor.visitTableStart( this ) ) {
+            for( Graphic g : cells ) g.accept( visitor );
+        }
+        
+        visitor.visitTableEnd( this );
+    }
+    
     Table( OGGraphic ogg, GraphicContainer parent, Page page ) {
         super( ogg, parent, page );
         

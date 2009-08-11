@@ -34,6 +34,17 @@ public class Line extends Graphic implements GraphicContainer, Connector {
         return new ArrayList<Graphic>( labels ).iterator();
     }
     
+    /**
+     * Accept a visitor
+     */
+    public void accept( DiagramVisitor visitor ) {
+        if( visitor.visitLineStart( this ) ) {
+            for( Graphic g : labels ) g.accept( visitor );
+        }
+        
+        visitor.visitLineEnd( this );
+    }
+    
     Line( OGGraphic ogg, GraphicContainer parent, Page page ) {
         super( ogg, parent, page );
     }
