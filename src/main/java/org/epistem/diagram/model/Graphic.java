@@ -23,6 +23,8 @@ public abstract class Graphic {
     
     abstract void init();
     
+    public abstract void accept( DiagramVisitor visitor );
+    
     Graphic( OGGraphic ogg, GraphicContainer parent, Page page ) {
 
         this.ogg = ogg;

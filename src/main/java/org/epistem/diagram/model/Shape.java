@@ -3,6 +3,7 @@ package org.epistem.diagram.model;
 import java.awt.geom.Rectangle2D;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 
 import javax.swing.text.DefaultStyledDocument;
 
@@ -22,12 +23,26 @@ public class Shape extends Graphic {
     public final Collection<Shape> intersectingShapes = new HashSet<Shape>();
     public final Collection<Shape> containingShapes   = new HashSet<Shape>();
     
+    /**
+     * Accept a visitor
+     */
+    public void accept( DiagramVisitor visitor ) {
+        visitor.visitShape( this );
+    }
+    
     Shape( OGGraphic ogg, GraphicContainer parent, Page page ) {
         super( ogg, parent, page );
         
-        this.text = ogg.toString();
-        this.richText = ogg.styledText();
-        this.bounds = ogg.bounds();
+        OGGraphic g = ogg;
+        
+        if( ogg.isSubgraph() ) {
+            List<OGGraphic> kids = ogg.graphics();
+            g = kids.get( kids.size() - 1 );
+        }
+        
+        this.text     = g.text();
+        this.richText = g.styledText();
+        this.bounds   = g.bounds();
     }
 
     /** @see org.epistem.diagram.model.Graphic#init() */

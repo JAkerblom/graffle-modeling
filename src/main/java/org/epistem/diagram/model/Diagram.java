@@ -31,6 +31,17 @@ public class Diagram {
     public final String subject;
     public final String version;
     
+    /**
+     * Accept a visitor
+     */
+    public void accept( DiagramVisitor visitor ) {
+        if( visitor.visitDiagramStart( this ) ) {
+            for( Page page : pages ) page.accept( visitor );
+        }
+        
+        visitor.visitDiagramEnd( this );
+    }
+    
     public Diagram( OmniGraffleDoc doc ) {
     
         file = doc.file();

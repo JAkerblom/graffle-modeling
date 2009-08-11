@@ -22,6 +22,13 @@ public class ConnectorShape extends Shape implements Connector {
         return tail;
     }
     
+    /**
+     * Accept a visitor
+     */
+    public void accept( DiagramVisitor visitor ) {
+       visitor.visitConnectorShape( this );
+    }
+    
     ConnectorShape( OGGraphic ogg, GraphicContainer parent, Page page ) {
         super( ogg, parent, page );
     }
