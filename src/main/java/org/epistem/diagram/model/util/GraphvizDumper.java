@@ -2,7 +2,6 @@ package org.epistem.diagram.model.util;
 
 import java.io.File;
 import java.io.FileWriter;
-import java.io.IOException;
 
 import org.epistem.diagram.model.*;
 import org.epistem.graffle.OmniGraffleDoc;
@@ -34,12 +33,12 @@ public class GraphvizDumper implements DiagramVisitor {
         gv.close();
     }
 
-    public boolean visitDiagramStart( Diagram diagram ) {
+    public DiagramVisitor visitDiagramStart( Diagram diagram ) {
         gv.startDiGraph( "Diagram" );
         
         gv.declareNode( "diagram", diagram.file.getName(), "#ffffcc" );
         
-        return true;
+        return this;
     }
 
     public void visitGroupEnd( Group group ) {
@@ -48,9 +47,9 @@ public class GraphvizDumper implements DiagramVisitor {
         }
     }
 
-    public boolean visitGroupStart( Group group ) {
+    public DiagramVisitor visitGroupStart( Group group ) {
         gv.declareNode( "" + group.hashCode(), "Group\n" + group.text, "#ffccff" );
-        return true;
+        return this;
     }
 
     public void visitLineEnd( Line line ) {
@@ -59,13 +58,13 @@ public class GraphvizDumper implements DiagramVisitor {
         }
     }
 
-    public boolean visitLineStart( Line line ) {
+    public DiagramVisitor visitLineStart( Line line ) {
         gv.declareNode( "" + line.hashCode(), "Line", "#ccccff" );
 
         if( line.head != null ) gv.arc( "" + line.hashCode(), "" + line.head.hashCode(), "head" );
         if( line.tail != null ) gv.arc( "" + line.hashCode(), "" + line.tail.hashCode(), "tail" );
         
-        return true;
+        return this;
     }
 
     public void visitPageEnd( Page page ) {
@@ -74,12 +73,12 @@ public class GraphvizDumper implements DiagramVisitor {
         }
     }
 
-    public boolean visitPageStart( Page page ) {
+    public DiagramVisitor visitPageStart( Page page ) {
         
         gv.declareNode( "" + page.hashCode(), page.title, "#ccffcc" );
         gv.arc( "diagram", "" + page.hashCode(), "page" );
         
-        return true;
+        return this;
     }
 
     public void visitShape( Shape shape ) {
@@ -92,9 +91,9 @@ public class GraphvizDumper implements DiagramVisitor {
         }
     }
 
-    public boolean visitTableStart( Table table ) {
+    public DiagramVisitor visitTableStart( Table table ) {
         gv.declareNode( "" + table.hashCode(), "Table", "#cccc88" );
-        return true;
+        return this;
     }
 
     public static void main( String[] args ) throws Exception {

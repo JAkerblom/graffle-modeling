@@ -27,8 +27,10 @@ public class Table extends Graphic implements GraphicContainer {
      * Accept a visitor
      */
     public void accept( DiagramVisitor visitor ) {
-        if( visitor.visitTableStart( this ) ) {
-            for( Graphic g : cells ) g.accept( visitor );
+        DiagramVisitor cellVisitor = visitor.visitTableStart( this );
+        
+        if( cellVisitor != null ) {
+            for( Graphic g : cells ) g.accept( cellVisitor );
         }
         
         visitor.visitTableEnd( this );

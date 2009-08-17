@@ -10,9 +10,9 @@ public interface DiagramVisitor {
     /**
      * Start a diagram visit
      * 
-     * @return true to visit all pages
+     * @return visitor for the pages - null to skip
      */
-    public boolean visitDiagramStart( Diagram diagram );
+    public DiagramVisitor visitDiagramStart( Diagram diagram );
 
     /**
      * End of diagram visit
@@ -22,9 +22,9 @@ public interface DiagramVisitor {
     /**
      * Start of a page visit
      * 
-     * @return true to visit all root graphics
+     * @return visitor for the root graphics - null to skip
      */
-    public boolean visitPageStart( Page page );
+    public DiagramVisitor visitPageStart( Page page );
     
     /**
      * End of page visit
@@ -34,9 +34,9 @@ public interface DiagramVisitor {
     /**
      * Start of a group visit
      * 
-     * @return true to visit all child graphics
+     * @return visitor for the children - null to skip
      */
-    public boolean visitGroupStart( Group group );
+    public DiagramVisitor visitGroupStart( Group group );
     
     /**
      * End of group visit
@@ -56,9 +56,9 @@ public interface DiagramVisitor {
     /**
      * Start a line visit
      * 
-     * @return true to visit all the labels
+     * @return visitor for the labels - null to skip
      */
-    public boolean visitLineStart( Line line );
+    public DiagramVisitor visitLineStart( Line line );
     
     /**
      * End of a line visit
@@ -68,12 +68,30 @@ public interface DiagramVisitor {
     /**
      * Start of a table visit
      * 
-     * @return true to visit all the cell shapes
+     * @return visitor for the cells - null to skip
      */
-    public boolean visitTableStart( Table table );
+    public DiagramVisitor visitTableStart( Table table );
 
     /**
      * End of a table visit
      */
     public void visitTableEnd( Table table );
+    
+    /**
+     * Convenience implementation that visits all children
+     */
+    public static class Impl implements DiagramVisitor {
+        public void visitConnectorShape( ConnectorShape shape ) {}
+        public void visitDiagramEnd( Diagram diagram ) {}
+        public DiagramVisitor visitDiagramStart( Diagram diagram ) { return this; }
+        public void visitGroupEnd( Group group ) {}
+        public DiagramVisitor visitGroupStart( Group group ) { return this; }
+        public void visitLineEnd( Line line ) {}
+        public DiagramVisitor visitLineStart( Line line ) { return this; }
+        public void visitPageEnd( Page page ) {}
+        public DiagramVisitor visitPageStart( Page page ) { return this; }
+        public void visitShape( Shape shape ) {}
+        public void visitTableEnd( Table table ) {}
+        public DiagramVisitor visitTableStart( Table table ) { return this; }        
+    }
 }

@@ -24,8 +24,10 @@ public class Group extends Shape implements GraphicContainer {
      * Accept a visitor
      */
     public void accept( DiagramVisitor visitor ) {
-        if( visitor.visitGroupStart( this ) ) {
-            for( Graphic g : children ) g.accept( visitor );
+        DiagramVisitor childVisitor = visitor.visitGroupStart( this );
+        
+        if( childVisitor != null ) {
+            for( Graphic g : children ) g.accept( childVisitor );
         }
         
         visitor.visitGroupEnd( this );
