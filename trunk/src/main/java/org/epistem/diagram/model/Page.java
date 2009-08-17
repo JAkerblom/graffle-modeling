@@ -26,8 +26,10 @@ public class Page implements GraphicContainer {
      * Accept a visitor
      */
     public void accept( DiagramVisitor visitor ) {
-        if( visitor.visitPageStart( this ) ) {
-            for( Graphic g : rootGraphics ) g.accept( visitor );
+        DiagramVisitor rootVisitor = visitor.visitPageStart( this );
+        
+        if( rootVisitor != null ) {
+            for( Graphic g : rootGraphics ) g.accept( rootVisitor );
         }
         
         visitor.visitPageEnd( this );

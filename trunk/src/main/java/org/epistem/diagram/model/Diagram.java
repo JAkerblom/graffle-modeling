@@ -35,8 +35,9 @@ public class Diagram {
      * Accept a visitor
      */
     public void accept( DiagramVisitor visitor ) {
-        if( visitor.visitDiagramStart( this ) ) {
-            for( Page page : pages ) page.accept( visitor );
+        DiagramVisitor pageVisitor = visitor.visitDiagramStart( this );
+        if( pageVisitor  != null ) {
+            for( Page page : pages ) page.accept( pageVisitor );
         }
         
         visitor.visitDiagramEnd( this );

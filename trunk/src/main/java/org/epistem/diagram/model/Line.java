@@ -38,8 +38,10 @@ public class Line extends Graphic implements GraphicContainer, Connector {
      * Accept a visitor
      */
     public void accept( DiagramVisitor visitor ) {
-        if( visitor.visitLineStart( this ) ) {
-            for( Graphic g : labels ) g.accept( visitor );
+        DiagramVisitor labelVisitor = visitor.visitLineStart( this );
+        
+        if( labelVisitor != null ) {
+            for( Graphic g : labels ) g.accept( labelVisitor );
         }
         
         visitor.visitLineEnd( this );
