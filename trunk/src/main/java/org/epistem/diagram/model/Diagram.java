@@ -1,9 +1,7 @@
 package org.epistem.diagram.model;
 
 import java.io.File;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
+import java.util.*;
 
 import org.epistem.graffle.OGSheet;
 import org.epistem.graffle.OmniGraffleDoc;
@@ -15,6 +13,8 @@ import org.epistem.graffle.OmniGraffleDoc;
  */
 public class Diagram {
 
+    public final Map<String,Object> userData = new HashMap<String, Object>();
+    
     public final File file;
     
     public final Collection<Page> pages = new HashSet<Page>();
