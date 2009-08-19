@@ -12,6 +12,7 @@ import org.epistem.graffle.OGSheet;
  */
 public class Page implements GraphicContainer {
 
+    public final Map<String,Object> userData = new HashMap<String, Object>();
     public final String title;
     public final Collection<Graphic> rootGraphics = new HashSet<Graphic>();
     public final Metadata metadata;
