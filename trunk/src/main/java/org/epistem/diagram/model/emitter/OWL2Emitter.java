@@ -27,7 +27,9 @@ public class OWL2Emitter extends ModelEmitter {
     private final OWLDataFactory     factory = manager.getOWLDataFactory();;
 
     private final Map<Graphic,OWLDescription> descCache = new HashMap<Graphic, OWLDescription>();
-    private final Map<String,OWLClass>  classCache = new HashMap<String, OWLClass>();
+    private final Map<String,OWLClass>        classCache = new HashMap<String, OWLClass>();
+    private final Map<Graphic,OWLIndividual>  individualCache = new HashMap<Graphic, OWLIndividual>();
+    private final Map<String,OWLIndividual>   individualNameCache = new HashMap<String, OWLIndividual>();
 
     private URI uri;
     private OWLOntology ontology;
@@ -44,6 +46,8 @@ public class OWL2Emitter extends ModelEmitter {
         }
 
         super.generate( defaultNamespace, namespaces );
+        
+        cleanupIndividuals();
     }
 
     @Override
@@ -60,6 +64,85 @@ public class OWL2Emitter extends ModelEmitter {
         }
     }
 
+    /**
+     * Make sure all individuals have a type (otherwise Protege will ignore)
+     */
+    private void cleanupIndividuals() {
+        for( OWLIndividual ind : individualCache.values() ) {
+            if( ind.getTypes( ontology ).isEmpty() ) {
+                //System.out.println( "Untyped individual " + ind.getURI() );
+                addAxiom( factory.getOWLClassAssertionAxiom( ind, factory.getOWLThing() ) );
+            } 
+        }
+    }
+
+    @Handler("ObjectOneOf")
+    public void objectOneOf() {
+
+        Set<OWLIndividual> inds = new HashSet<OWLIndividual>();
+        
+        for( Connector conn : graphic.outgoing ) {
+            if( ! isEmpty( ((Line) conn).metadata.notes )) continue;
+            inds.add( individualForGraphic( premptGraphic( notNullShape( conn.getHead() ))));
+        }
+
+        if( inds.size() < 1 ) throw new RuntimeException( "Object-one-of requires 2 or more target individuals" );
+
+        descCache.put( graphic, factory.getOWLObjectOneOf( inds ) );
+    }
+    
+    @Handler("AllSameIndividual")
+    public void allSameIndividual() {
+        Set<OWLIndividual> inds = new HashSet<OWLIndividual>();
+        
+        for( Connector conn : graphic.outgoing ) {
+            if( ! isEmpty( ((Line) conn).metadata.notes )) continue;
+            inds.add( individualForGraphic( premptGraphic( notNullShape( conn.getHead() ))));
+        }
+
+        if( inds.size() < 2 ) throw new RuntimeException( "'All same' requires 2 or more target individuals" );
+        
+        addAxiom( factory.getOWLSameIndividualsAxiom( inds ) );
+    }
+    
+    @Handler("SameIndividual")
+    public void SameIndividual() {
+        Set<OWLIndividual> inds = new HashSet<OWLIndividual>();
+        inds.add( individualForGraphic( premptGraphic( tailShape() ) ));
+        inds.add( individualForGraphic( premptGraphic( headShape() ) ));
+        
+        addAxiom( factory.getOWLSameIndividualsAxiom( inds ) );
+    }
+
+    
+    @Handler("AllDifferentIndividuals")
+    public void allDifferentIndividuals() {
+        Set<OWLIndividual> inds = new HashSet<OWLIndividual>();
+        
+        for( Connector conn : graphic.outgoing ) {
+            if( ! isEmpty( ((Line) conn).metadata.notes )) continue;
+            inds.add( individualForGraphic( premptGraphic( notNullShape( conn.getHead() ))));
+        }
+
+        if( inds.size() < 2 ) throw new RuntimeException( "'All different' requires 2 or more target individuals" );
+        
+        addAxiom( factory.getOWLDifferentIndividualsAxiom( inds ) );
+    }
+    
+    @Handler("DifferentIndividuals")
+    public void differentIndividuals() {
+        OWLIndividual ind1 = individualForGraphic( premptGraphic( tailShape() ) );
+        OWLIndividual ind2 = individualForGraphic( premptGraphic( headShape() ) );
+        addAxiom( factory.getOWLDifferentIndividualsAxiom( ind1, ind2 ) );
+    }
+    
+    @Handler("InstanceOf")
+    public void instanceOf() {
+        OWLIndividual  ind  = individualForGraphic( premptGraphic( tailShape() ) );
+        OWLDescription desc = classForGraphic( premptGraphic( headShape() ) );
+        addAxiom( factory.getOWLClassAssertionAxiom( ind, desc ) );
+    }
+    
     @Handler("ObjectComplement")
     public void objectComplement() {
 
@@ -73,7 +156,7 @@ public class OWL2Emitter extends ModelEmitter {
             break;
         }
         
-        if( ! hasTarget ) throw new RuntimeException( "Object complement requires a target class" );
+        if( ! hasTarget ) throw new  RuntimeException( "Object complement requires a target class" );
     }
 
     @Handler("ObjectIntersection")
@@ -152,6 +235,11 @@ public class OWL2Emitter extends ModelEmitter {
         classForGraphic( graphic );        
     }
 
+    @Handler("Individual")
+    public void owlIndividual() {
+        individualForGraphic( graphic );        
+    }
+    
     @Handler("SubClassOf")
     public void subClass() {
         OWLDescription superClass = classForGraphic( premptGraphic( headShape()));
@@ -168,6 +256,16 @@ public class OWL2Emitter extends ModelEmitter {
         OWLClass clazz = getOWLClass( className );
         descCache.put( g, clazz );
         return clazz;
+    }
+
+    private OWLIndividual individualForGraphic( Graphic g ) {
+        OWLIndividual ind = individualCache.get( g );   
+        if( ind != null ) return ind;
+        
+        String indName = makeName( g, "Individual" );
+        ind = getOWLIndividual( indName );        
+        individualCache.put( g, ind );        
+        return ind;
     }
     
     private Shape headShape() {
@@ -188,6 +286,17 @@ public class OWL2Emitter extends ModelEmitter {
         if( g == null ) throw new RuntimeException( "Shape required" );
         if( !( g instanceof Shape )) throw new RuntimeException( "Not a shape" );
         return (Shape) g;
+    }
+    
+    private OWLIndividual getOWLIndividual( String name ) {
+        OWLIndividual i = individualNameCache.get( name );
+        if( i == null ) {
+            i = factory.getOWLIndividual( URI.create( uri + name ) );
+            declare( i );
+            individualNameCache.put( name, i );
+        }
+        
+        return i;
     }
     
     private OWLClass getOWLClass( String name ) {
