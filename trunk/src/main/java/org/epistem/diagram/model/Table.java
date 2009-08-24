@@ -40,14 +40,14 @@ public class Table extends Graphic implements GraphicContainer {
         super( ogg, parent, page );
         
         OGGraphic[][] oggTable = ogg.table();
-        int rowCount = oggTable.length;
-        int colCount = oggTable[0].length;
+        int colCount = oggTable.length;
+        int rowCount = oggTable[0].length;
         
         table = new Shape[ rowCount ][ colCount ];
         
         for( int row = 0; row < rowCount; row++ ) {
             for( int col = 0; col < colCount; col++ ) {
-                Shape s = new Shape( oggTable[ row ][ col ], this, page );
+                Shape s = new Shape( oggTable[ col ][ row ], this, page );
                 table[ row ][ col ] = s;
                 cells.add( s );
             }
@@ -58,5 +58,10 @@ public class Table extends Graphic implements GraphicContainer {
     @Override
     void init() {
         //nothing
+    }
+    
+    @Override
+    public String toString() {
+        return "Table";
     }
 }

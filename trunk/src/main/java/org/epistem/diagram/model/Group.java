@@ -40,4 +40,9 @@ public class Group extends Shape implements GraphicContainer {
             children.add( Graphic.make( g, this, page ) );            
         }
     }    
+    
+    @Override
+    public String toString() {
+        return "Group '" + text + "'";
+    }
 }

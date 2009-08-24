@@ -1,7 +1,9 @@
 package org.epistem.diagram.model;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 
 import org.epistem.graffle.OGGraphic;
 
@@ -12,6 +14,7 @@ import org.epistem.graffle.OGGraphic;
  */
 public abstract class Graphic {
 
+    public final Map<String,Object> userData = new HashMap<String, Object>();
     public final Metadata metadata;
     public final boolean  isSolid;
     public final Page     page;
@@ -48,4 +51,7 @@ public abstract class Graphic {
             default: throw new RuntimeException( "UNREACHABLE CODE" );
         }
     }
+    
+    @Override
+    abstract public String toString();
 }
