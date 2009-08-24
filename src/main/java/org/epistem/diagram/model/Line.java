@@ -60,4 +60,9 @@ public class Line extends Graphic implements GraphicContainer, Connector {
         if( head != null ) head.incoming.add( this );
         if( tail != null ) tail.outgoing.add( this );
     }
+    
+    @Override
+    public String toString() {
+        return "Line";
+    }
 }

@@ -45,4 +45,8 @@ public class ConnectorShape extends Shape implements Connector {
         if( tail != null ) tail.outgoing.add( this );
     }
 
+    @Override
+    public String toString() {
+        return "Connector '" + text + "'";
+    }
 }

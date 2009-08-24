@@ -56,4 +56,9 @@ public class Shape extends Graphic {
             page.rootGraphics.remove( this );
         }        
     }
+    
+    @Override
+    public String toString() {
+        return "Shape '" + text + "'";
+    }
 }
