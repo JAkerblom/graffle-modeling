@@ -31,6 +31,9 @@ public class OWL2Emitter extends ModelEmitter {
     private final Map<Graphic,OWLIndividual>  individualCache = new HashMap<Graphic, OWLIndividual>();
     private final Map<String,OWLIndividual>   individualNameCache = new HashMap<String, OWLIndividual>();
 
+    private final Map<Graphic,OWLPropertyExpression<?,?>> propCache     = new HashMap<Graphic, OWLPropertyExpression<?,?>>();
+    private final Map<String, OWLProperty<?,?>>           propNameCache = new HashMap<String,  OWLProperty<?,?>>();
+    
     private URI uri;
     private OWLOntology ontology;
     
@@ -39,7 +42,7 @@ public class OWL2Emitter extends ModelEmitter {
         uri = URI.create( defaultNamespace );
         
         try {
-            ontology = manager.createOntology( uri );            
+            ontology = manager.createOntology( uri );     
         } 
         catch( OWLOntologyCreationException e ) {
             throw new RuntimeException( e );
@@ -76,6 +79,83 @@ public class OWL2Emitter extends ModelEmitter {
         }
     }
 
+    @Handler("ObjectProperty")
+    public void objectProperty() {
+        propertyForGraphic( graphic );
+    }
+    
+    @Handler("NegativePropertyAssertion")
+    public void negativePropertyAssertion() {
+        OWLIndividual ind1 = individualForGraphic( premptGraphic( headShape()));
+        OWLIndividual ind2 = individualForGraphic( premptGraphic( tailShape()));
+        
+        for( Graphic label : ((Line) graphic).labels ) {
+            OWLPropertyExpression<?,?> prop = propertyForGraphic( label );
+            if( prop == null ) throw new RuntimeException( "Non-property label on a PropertyAssertion" );
+            
+            if( prop instanceof OWLObjectPropertyExpression ) {
+                addAxiom( factory.getOWLNegativeObjectPropertyAssertionAxiom( ind2, (OWLObjectPropertyExpression) prop, ind1 ) );        
+            }
+            else {
+                throw new RuntimeException( "UNIMPLEMENTED" );//TODO:
+                //addAxiom( factory.getOWLNegativeDataPropertyAssertionAxiom( ind2, (OWLDataPropertyExpression) prop, ind1 ) );                        
+            }
+        }
+    }
+    
+    @Handler("InverseObjectProperty")
+    public void inverseObjectProperty() {
+        propertyForGraphic( graphic );
+    }
+    
+    @Handler("PropertyAssertion")
+    public void propertyAssertion() {
+        OWLIndividual ind1 = individualForGraphic( premptGraphic( headShape()));
+        OWLIndividual ind2 = individualForGraphic( premptGraphic( tailShape()));
+        
+        for( Graphic label : ((Line) graphic).labels ) {
+            OWLPropertyExpression<?,?> prop = propertyForGraphic( label );
+            if( prop == null ) throw new RuntimeException( "Non-property label on a PropertyAssertion" );
+            
+            if( prop instanceof OWLObjectPropertyExpression ) {
+                addAxiom( factory.getOWLObjectPropertyAssertionAxiom( ind2, (OWLObjectPropertyExpression) prop, ind1 ) );        
+            }
+            else {
+                throw new RuntimeException( "UNIMPLEMENTED" );//TODO:
+                //addAxiom( factory.getOWLDataPropertyAssertionAxiom( ind2, (OWLDataPropertyExpression) prop, ind1 ) );                        
+            }
+        }
+    }
+    
+    @Handler("SubPropertyOf")
+    public void subPropertyOf() {
+        OWLPropertyExpression<?,?> superProp = propertyForGraphic( premptGraphic( headShape()));
+        OWLPropertyExpression<?,?> subProp   = propertyForGraphic( premptGraphic( tailShape()));
+        
+        if     ( superProp == null ) throw new RuntimeException( "Super prop is missing" );
+        else if( subProp   == null ) throw new RuntimeException( "Sub prop is missing" );
+        else if( superProp instanceof OWLObjectPropertyExpression 
+              && subProp instanceof OWLObjectPropertyExpression ) {
+            
+            addAxiom( factory.getOWLSubObjectPropertyAxiom( 
+                                  (OWLObjectPropertyExpression) subProp, 
+                                  (OWLObjectPropertyExpression) superProp ) );
+        }
+        else if( superProp instanceof OWLDataPropertyExpression 
+              && subProp instanceof OWLDataPropertyExpression ) {
+                   
+            addAxiom( factory.getOWLSubDataPropertyAxiom( 
+                                  (OWLDataPropertyExpression) subProp, 
+                                  (OWLDataPropertyExpression) superProp ) );
+        }
+        else {
+            throw new RuntimeException( "Cannot create SubPropertyOf between " 
+                                        + subProp.getClass().getName()
+                                        + " and " 
+                                        + superProp.getClass().getName() );
+        }        
+    }
+        
     @Handler("ObjectOneOf")
     public void objectOneOf() {
 
@@ -258,6 +338,24 @@ public class OWL2Emitter extends ModelEmitter {
         return clazz;
     }
 
+    private OWLPropertyExpression<?,?> propertyForGraphic( Graphic g ) {
+        OWLPropertyExpression<?,?> propEx = propCache.get( g );
+        if( propEx != null ) return propEx;
+        
+        String propName = makeName( g, "Property" );
+        String note = g.metadata.notes;
+        
+        if     ( "ObjectProperty".equals( note ) ) propEx = getOWLProperty( propName, false );
+        else if( "DataProperty"  .equals( note ) ) propEx = getOWLProperty( propName, true );
+        else if( "InverseObjectProperty".equals( note ) ) {
+            propEx = factory.getOWLObjectPropertyInverse( (OWLObjectProperty) getOWLProperty( propName, false ) ); 
+        }
+        
+        propCache.put( g, propEx );
+        
+        return propEx;
+    }
+    
     private OWLIndividual individualForGraphic( Graphic g ) {
         OWLIndividual ind = individualCache.get( g );   
         if( ind != null ) return ind;
@@ -291,7 +389,7 @@ public class OWL2Emitter extends ModelEmitter {
     private OWLIndividual getOWLIndividual( String name ) {
         OWLIndividual i = individualNameCache.get( name );
         if( i == null ) {
-            i = factory.getOWLIndividual( URI.create( uri + name ) );
+            i = factory.getOWLIndividual( URI.create( uri + "#" + name ) );
             declare( i );
             individualNameCache.put( name, i );
         }
@@ -299,10 +397,22 @@ public class OWL2Emitter extends ModelEmitter {
         return i;
     }
     
+    private OWLProperty<?,?> getOWLProperty( String name, boolean dataProp ) {
+        OWLProperty<?,?> p = propNameCache.get( name );
+        if( p == null ) {            
+            p = dataProp ? factory.getOWLDataProperty( URI.create( uri + "#" + name ) ) :
+                           factory.getOWLObjectProperty( URI.create( uri + "#" + name ) );
+            declare( p );
+            propNameCache.put( name, p );
+        }
+        
+        return p;
+    }
+    
     private OWLClass getOWLClass( String name ) {
         OWLClass c = classCache.get( name );
         if( c == null ) {
-            c = factory.getOWLClass( URI.create( uri + name ) );
+            c = factory.getOWLClass( URI.create( uri + "#" + name ) );
             declare( c );
             classCache.put( name, c );
         }
