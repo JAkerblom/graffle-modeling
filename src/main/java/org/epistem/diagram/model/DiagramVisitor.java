@@ -78,7 +78,7 @@ public interface DiagramVisitor {
     public void visitTableEnd( Table table );
     
     /**
-     * Convenience implementation that visits all children
+     * Convenience implementation that visits all children and labels
      */
     public static class Impl implements DiagramVisitor {
         public void visitConnectorShape( ConnectorShape shape ) {}
@@ -93,5 +93,24 @@ public interface DiagramVisitor {
         public void visitShape( Shape shape ) {}
         public void visitTableEnd( Table table ) {}
         public DiagramVisitor visitTableStart( Table table ) { return this; }        
+    }
+    
+    /**
+     * Convenience implementation that does not visit children or labels but
+     * does visit all pages
+     */
+    public static class ShallowImpl implements DiagramVisitor {
+        public void visitConnectorShape( ConnectorShape shape ) {}
+        public void visitDiagramEnd( Diagram diagram ) {}
+        public DiagramVisitor visitDiagramStart( Diagram diagram ) { return this; }
+        public void visitGroupEnd( Group group ) {}
+        public DiagramVisitor visitGroupStart( Group group ) { return null; }
+        public void visitLineEnd( Line line ) {}
+        public DiagramVisitor visitLineStart( Line line ) { return null; }
+        public void visitPageEnd( Page page ) {}
+        public DiagramVisitor visitPageStart( Page page ) { return this; }
+        public void visitShape( Shape shape ) {}
+        public void visitTableEnd( Table table ) {}
+        public DiagramVisitor visitTableStart( Table table ) { return null; }        
     }
 }
