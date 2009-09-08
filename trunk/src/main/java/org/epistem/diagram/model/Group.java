@@ -3,6 +3,7 @@ package org.epistem.diagram.model;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 
 import org.epistem.graffle.OGGraphic;
 
@@ -36,7 +37,12 @@ public class Group extends Shape implements GraphicContainer {
     Group( OGGraphic ogg, GraphicContainer parent, Page page ) {
         super( ogg, parent, page );
         
-        for( OGGraphic g : ogg.graphics()) {
+        List<OGGraphic> kids = ogg.graphics();
+        if( ogg.isSubgraph() ) {            
+            kids.remove( kids.size() - 1 );
+        }
+        
+        for( OGGraphic g : kids ) {
             children.add( Graphic.make( g, this, page ) );            
         }
     }    
