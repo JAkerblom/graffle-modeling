@@ -23,6 +23,12 @@ public class Table extends Graphic implements GraphicContainer {
         return new HashSet<Graphic>( cells ).iterator();
     }
 
+    /** Get the row count */
+    public int rowCount() { return table.length; }
+
+    /** Get the column count */
+    public int colCount() { return table[0].length; }
+    
     /**
      * Accept a visitor
      */

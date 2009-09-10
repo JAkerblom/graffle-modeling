@@ -16,9 +16,14 @@ import org.epistem.graffle.OGGraphic;
  */
 public class Shape extends Graphic {
 
+    public static enum Type {
+        Circle, Rectangle, RoundRect, Other
+    }
+    
     public final String text;
     public final DefaultStyledDocument richText;
     public final Rectangle2D bounds;
+    public final Shape.Type type; 
     public final Collection<Shape> containedShapes    = new HashSet<Shape>();
     public final Collection<Shape> intersectingShapes = new HashSet<Shape>();
     public final Collection<Shape> containingShapes   = new HashSet<Shape>();
@@ -34,6 +39,16 @@ public class Shape extends Graphic {
         super( ogg, parent, page );
         
         OGGraphic g = ogg;
+        
+        String shapeType = g.shape();
+        Type t = Type.Other;
+        try {
+            t = Type.valueOf( shapeType );
+        }
+        catch( Exception e ) {
+            t = Type.Other;
+        }
+        this.type = t;
         
         if( ogg.isSubgraph() ) {
             List<OGGraphic> kids = ogg.graphics();
