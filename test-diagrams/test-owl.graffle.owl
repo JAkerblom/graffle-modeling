@@ -4,6 +4,7 @@
 <!DOCTYPE rdf:RDF [
     <!ENTITY owl "http://www.w3.org/2002/07/owl#" >
     <!ENTITY owl2 "http://www.w3.org/2006/12/owl2#" >
+    <!ENTITY dc "http://purl.org/dc/elements/1.1/" >
     <!ENTITY xsd "http://www.w3.org/2001/XMLSchema#" >
     <!ENTITY owl2xml "http://www.w3.org/2006/12/owl2-xml#" >
     <!ENTITY rdfs "http://www.w3.org/2000/01/rdf-schema#" >
@@ -13,11 +14,85 @@
 
 <rdf:RDF xmlns="http://foobar.com/ontologies/foo#"
      xml:base="http://foobar.com/ontologies/foo"
+     xmlns:dc="http://purl.org/dc/elements/1.1/"
      xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
      xmlns:owl2xml="http://www.w3.org/2006/12/owl2-xml#"
      xmlns:owl="http://www.w3.org/2002/07/owl#"
      xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
      xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
      xmlns:owl2="http://www.w3.org/2006/12/owl2#">
-    <owl:Ontology rdf:about=""/>
+    <owl:Ontology rdf:about="">
+        <owl:comment rdf:datatype="&xsd;string">A comment</owl:comment>
+        <dc:description rdf:datatype="&xsd;string"
+            >This is the description</dc:description>
+        <dc:title rdf:datatype="&xsd;string"
+            >This is the ontology title</dc:title>
+        <owl:versionInfo rdf:datatype="&xsd;string">alpha</owl:versionInfo>
+    </owl:Ontology>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Annotation properties
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    <owl:AnnotationProperty rdf:about="&dc;title"/>
+    <owl:AnnotationProperty rdf:about="&owl;comment"/>
+    <owl:AnnotationProperty rdf:about="&dc;description"/>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Classes
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#FooBarA -->
+
+    <owl:Class rdf:about="#FooBarA"/>
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#FooBarB -->
+
+    <owl:Class rdf:about="#FooBarB"/>
+    
+
+
+    <!-- http://www.w3.org/2002/07/owl#Thing -->
+
+    <owl:Class rdf:about="&owl;Thing"/>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Individuals
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#IndividualA -->
+
+    <owl:Thing rdf:about="#IndividualA"/>
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#IndividualB -->
+
+    <owl:Thing rdf:about="#IndividualB"/>
 </rdf:RDF>

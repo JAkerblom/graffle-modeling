@@ -6,29 +6,13 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.epistem.diagram.model.Diagram;
-import org.epistem.diagram.model.DiagramVisitor;
-import org.epistem.diagram.model.Graphic;
-import org.epistem.diagram.model.Group;
-import org.epistem.diagram.model.Page;
-import org.epistem.diagram.model.Shape;
-import org.epistem.diagram.model.Table;
+import org.epistem.diagram.model.*;
 import org.epistem.graffle.OmniGraffleDoc;
 import org.semanticweb.owl.apibinding.OWLManager;
 import org.semanticweb.owl.io.DefaultOntologyFormat;
 import org.semanticweb.owl.io.OWLOntologyOutputTarget;
 import org.semanticweb.owl.io.StreamOutputTarget;
-import org.semanticweb.owl.model.OWLAxiom;
-import org.semanticweb.owl.model.OWLClass;
-import org.semanticweb.owl.model.OWLDataFactory;
-import org.semanticweb.owl.model.OWLDeclarationAxiom;
-import org.semanticweb.owl.model.OWLDescription;
-import org.semanticweb.owl.model.OWLEntity;
-import org.semanticweb.owl.model.OWLIndividual;
-import org.semanticweb.owl.model.OWLOntology;
-import org.semanticweb.owl.model.OWLOntologyChangeException;
-import org.semanticweb.owl.model.OWLOntologyCreationException;
-import org.semanticweb.owl.model.OWLOntologyManager;
+import org.semanticweb.owl.model.*;
 
 /**
  * Reads a diagram and emits an OWL2 ontology
@@ -36,18 +20,31 @@ import org.semanticweb.owl.model.OWLOntologyManager;
  * @author nickmain
  */
 public class OntologyEmitter {
-
+    private static final String XSD_PREFIX = "xsd:";
+    private static final String SELF       = "*SELF*";
+    
+    /**
+     * The different roles that graphics can have
+     */
+    private static enum Role {
+        RoleClass, RoleIndividual, RoleProperty, RoleObjectProperty, RoleDataProperty,
+        RoleDatatype, RoleDataRange, RoleClassExpression, RoleLiteral, RoleDataPropList,
+        RoleCardinality, RoleSelf, RoleLiteralTable, RoleIndividualTable,
+        RoleAnnotationList, RoleComment, RoleDescription,
+        RoleRelationship, RoleOther
+    }
+    
     private final OWLOntologyManager manager = OWLManager.createOWLOntologyManager();;
     private final OWLDataFactory     factory = manager.getOWLDataFactory();;
 
     private final Diagram diagram;
-    private URI uri;
+    private URI ontologyURI;
     private OWLOntology ontology;
     
     private final Map<Graphic,OWLDescription> descCache = new HashMap<Graphic, OWLDescription>();
-    private final Map<String,OWLClass>        classCache = new HashMap<String, OWLClass>();
+    private final Map<URI,OWLClass>           classCache = new HashMap<URI, OWLClass>();
     private final Map<Graphic,OWLIndividual>  individualCache = new HashMap<Graphic, OWLIndividual>();
-    private final Map<String,OWLIndividual>   individualNameCache = new HashMap<String, OWLIndividual>();
+    private final Map<URI,OWLIndividual>      individualNameCache = new HashMap<URI, OWLIndividual>();
     private final Map<String,String>          uriPrefixes = new HashMap<String, String>();
     
     /**
@@ -97,19 +94,14 @@ public class OntologyEmitter {
     	
         initNamespaces();
         
+        //TODO: find namespaces
+        
         diagram.accept( new OntoDefVisitor() ); //find ontology definition
         if( ontology == null ) throw new RuntimeException( "No ontology definition found" );
         
-        discoverEntities();
+        diagram.accept( new EntityVisitor() ); //discover entities
         
         cleanupIndividuals();
-    }
-    
-    /**
-     * Discover all the entities in the diagram
-     */
-    private void discoverEntities() throws Exception {
-        //TODO
     }
     
     /**
@@ -137,11 +129,17 @@ public class OntologyEmitter {
         }
     }
     
-    private OWLIndividual getOWLIndividual( String name ) throws OWLOntologyChangeException {
+    private OWLIndividual getOWLIndividual( URI name ) {
         OWLIndividual i = individualNameCache.get( name );
         if( i == null ) {
-            i = factory.getOWLIndividual( URI.create( uri + "#" + name ) );
-            declare( i );
+            i = factory.getOWLIndividual( name );
+            try {
+                declare( i );
+            }
+            catch( OWLOntologyChangeException e ) {
+                throw new RuntimeException( e );
+            }
+
             individualNameCache.put( name, i );
         }
         
@@ -149,12 +147,18 @@ public class OntologyEmitter {
     }
     
     
-    private OWLClass getOWLClass( String name ) throws OWLOntologyChangeException {
-        OWLClass c = classCache.get( name );
+    private OWLClass getOWLClass( URI classURI ) {
+        OWLClass c = classCache.get( classURI );
         if( c == null ) {
-            c = factory.getOWLClass( URI.create( uri + "#" + name ) );
-            declare( c );
-            classCache.put( name, c );
+            c = factory.getOWLClass( classURI );
+            try {
+                declare( c );
+            }
+            catch( OWLOntologyChangeException e ) {
+                throw new RuntimeException( e );
+            }
+
+            classCache.put( classURI, c );
         }
         
         return c;
@@ -165,18 +169,22 @@ public class OntologyEmitter {
         addAxiom( ax );
     }
     
-    private void addAxiom( OWLAxiom axiom ) throws OWLOntologyChangeException {
-        manager.addAxiom( ontology, axiom );
+    private void addAxiom( OWLAxiom axiom ) {
+        try {
+            manager.addAxiom( ontology, axiom );
+        } 
+        catch( OWLOntologyChangeException e ) {
+            throw new RuntimeException( e );
+        }
     }
     
-    private String makeName( Graphic g, String type ) {
-        if( ! (g instanceof Shape) ) throw new RuntimeException( type + " graphic must be a Shape with text in sheet " + g.page.title );
-        String text = ((Shape) g).text;
+    private String makeName( Shape s, String type ) {
+        String text = s.text;
         
-        if( text == null ) throw new RuntimeException( type + " name missing in sheet " + g.page.title );
+        if( text == null ) return null;
         StringBuilder buff = new StringBuilder();
         String[] words = text.split( "\\s" );
-        if( words.length == 0 ) throw new RuntimeException( "Blank " + type + " name in sheet " + g.page.title );
+        if( words.length == 0 ) return null;
         
         for( String word : words ) {
             if( ! Character.isUpperCase( word.charAt( 0 )) ) {
@@ -197,13 +205,143 @@ public class OntologyEmitter {
     }
     
     /**
+     * Get a URI from a string that may be absolute 
+     */
+    private URI uriFromString( String s ) {
+        if( s.startsWith( "http://" ) ) return URI.create( s );
+        int colon = s.indexOf( ":" );
+        
+        if( colon >= 0 ) {
+            String prefix = s.substring( 0, colon );
+            String name   = s.substring( colon + 1 );
+            String nspace = uriPrefixes.get( prefix );
+            
+            if( nspace == null ) throw new RuntimeException( "Unknown prefix: " + prefix + " in " + s );
+            return URI.create( nspace + name );
+        }
+        else {
+            return URI.create( ontologyURI.toString() + "#" + s );
+        }
+    }
+    
+    /**
+     * Whether the given name is in the local namespace
+     */
+    private boolean isLocalName( String s ) {
+        if( s.startsWith( "http://" ) ) return false;
+        if( s.indexOf( ":" ) > 0 ) return false;
+        return true;
+    }
+    
+    /**
+     * Register a class shape
+     */
+    private void registerClass( Shape shape ) {
+        String name = makeName( shape, "Class" );
+        if( name == null ) return; //a class expression
+
+        if( ! isLocalName( name ) ) return; //imported class
+        
+        URI classURI = uriFromString( name );
+        descCache.put( shape, getOWLClass( classURI ));
+    }
+    
+    /**
+     * Register an individual
+     */
+    private void registerIndividual( Shape shape ) {
+        String name = makeName( shape, "Individual" );
+        if( name == null ) return;
+
+        if( ! isLocalName( name ) ) return; //imported
+        
+        URI indURI = uriFromString( name );
+        individualCache.put( shape, getOWLIndividual( indURI ));
+    }    
+    
+    /**
+     * Whether a shape is a literal
+     */
+    private boolean isLiteral( Shape shape ) {
+        return shape.metadata.notes != null && shape.metadata.notes.startsWith( XSD_PREFIX );
+    }
+
+    /**
+     * Determine the role a graphic plays in defining the ontology
+     */
+    private Role determineRole( Graphic g ) {
+        if( g instanceof Line  ) return Role.RoleRelationship;        
+        if( g instanceof Shape ) return determineShapeRole( (Shape) g );
+        if( g instanceof Table ) return determineTableRole( (Table) g );
+        return Role.RoleOther;
+    }
+    
+    private Role determineShapeRole( Shape s ) {
+        if( s.parent != null && s.parent instanceof Line ) {
+            
+        }
+        
+        switch( s.type ) {
+            case Circle:
+                if( isEmpty( s.text ) ) return Role.RoleClassExpression;
+                return Role.RoleClass;
+            
+            case Rectangle: 
+                if( isLiteral( s ) ) return Role.RoleLiteral;
+                if( SELF.equalsIgnoreCase( s.text )) return Role.RoleSelf;
+                if( s.incoming.isEmpty() && s.outgoing.isEmpty() ) return Role.RoleOther;
+                return Role.RoleIndividual;
+                
+            case RoundRect: 
+                if( s.isSolid ) return Role.RoleDatatype;
+                return Role.RoleDataRange;
+                
+            case Other:     break;
+        }
+        
+        return Role.RoleOther;
+    }
+    
+    private Role determineTableRole( Table t ) {
+        //TODO
+        
+        return Role.RoleOther;
+    }
+    
+    /**
      * TEST
      */
     public static void main(String[] args) {
 		new OntologyEmitter( new File( "test-diagrams/test-owl.graffle" )).write();
 	}
 
-    
+    /**
+     * Visitor to discover entities
+     */
+    private class EntityVisitor extends DiagramVisitor.ShallowImpl {
+
+        @Override
+        public void visitShape( Shape shape ) {
+            
+            switch( determineShapeRole( shape )) {
+                case RoleClass:      registerClass( shape ); break;
+                case RoleIndividual: registerIndividual( shape ); break;
+            }
+            
+        }
+
+        @Override
+        public DiagramVisitor visitGroupStart( Group group ) {
+            // TODO - find individuals
+            return super.visitGroupStart( group );
+        }
+
+        @Override
+        public DiagramVisitor visitTableStart( Table table ) {
+            // TODO - find property grids
+            return super.visitTableStart( table );
+        }
+    }
     
     /**
      * Visitor to discover the ontology definition
@@ -216,8 +354,8 @@ public class OntologyEmitter {
 				if( group.text.startsWith( "http://" ) ) {
 					if( ontology != null ) throw new RuntimeException( "More than one ontology definition" );					
 					try {
-					    uri =  URI.create( group.text );
-						ontology = manager.createOntology( uri );
+					    ontologyURI = URI.create( group.text );
+						ontology = manager.createOntology( ontologyURI );
 					} catch( Exception e ) {
 						throw new RuntimeException( e );
 					}					
@@ -230,7 +368,24 @@ public class OntologyEmitter {
 
 		@Override
 		public DiagramVisitor visitTableStart(Table table) {
-			// TODO Auto-generated method stub
+			// This is a table inside a ontology declaration
+		    
+		    if( table.colCount() != 2 ) {
+		        throw new RuntimeException( 
+		            "Annotation table in an ontology declaration must have 2 columns" );
+		    }
+		 
+		    for( Shape[] row : table.table ) {
+		        String annot = row[0].text.trim();
+		        String value = row[1].text;
+		        
+		        URI annoURI = uriFromString( annot );
+		        OWLConstant anVal = factory.getOWLTypedConstant( value );
+		        OWLConstantAnnotation annotation = factory.getOWLConstantAnnotation( annoURI, anVal );
+		        OWLOntologyAnnotationAxiom axiom = factory.getOWLOntologyAnnotationAxiom( ontology, annotation );
+		        addAxiom( axiom );
+		    }
+		    
 			return null;
 		}
     }
