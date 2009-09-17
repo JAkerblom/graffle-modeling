@@ -28,7 +28,6 @@
             >This is the description</dc:description>
         <dc:title rdf:datatype="&xsd;string"
             >This is the ontology title</dc:title>
-        <owl:imports rdf:resource="http://xmlns.com/foaf/0.1/"/>
     </owl:Ontology>
     
 
@@ -44,6 +43,40 @@
     <owl:AnnotationProperty rdf:about="&dc;title"/>
     <owl:AnnotationProperty rdf:about="&owl;comment"/>
     <owl:AnnotationProperty rdf:about="&dc;description"/>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Object Properties
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#objectproperty -->
+
+    <owl:ObjectProperty rdf:about="#objectproperty"/>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Data properties
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#dataproperty -->
+
+    <owl:DatatypeProperty rdf:about="#dataproperty"/>
     
 
 
@@ -67,4 +100,33 @@
     <!-- http://foobar.com/ontologies/foo#FooBarB -->
 
     <owl:Class rdf:about="#FooBarB"/>
+    
+
+
+    <!-- http://www.w3.org/2002/07/owl#Thing -->
+
+    <owl:Class rdf:about="&owl;Thing"/>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Individuals
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#IndividualA -->
+
+    <owl:Thing rdf:about="#IndividualA"/>
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#IndividualB -->
+
+    <owl:Thing rdf:about="#IndividualB"/>
 </rdf:RDF>

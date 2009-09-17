@@ -28,7 +28,7 @@ public class OntologyEmitter {
      * The graphic notes used to indicate ontology elements
      */
     private static enum OntoNote {
-        Ontology, Imports, Individual, Class;
+        Ontology, Imports, Individual, Class, DataProperty, ObjectProperty, DataType;
      
         /** Whether this note matches a graphic */
         public boolean matches( Graphic g ) {
@@ -44,16 +44,19 @@ public class OntologyEmitter {
     private URI ontologyURI;
     private OWLOntology ontology;
     
-    private final Map<URI,OWLClass>      classCache      = new HashMap<URI, OWLClass>();
-    private final Map<URI,OWLIndividual> individualCache = new HashMap<URI, OWLIndividual>();
-    private final Map<String,String>     uriPrefixes     = new HashMap<String, String>();
+    private final Map<URI,OWLClass>          classCache      = new HashMap<URI, OWLClass>();
+    private final Map<URI,OWLIndividual>     individualCache = new HashMap<URI, OWLIndividual>();
+    private final Map<URI,OWLDataProperty>   dataPropCache   = new HashMap<URI, OWLDataProperty>();
+    private final Map<URI,OWLObjectProperty> objPropCache    = new HashMap<URI, OWLObjectProperty>();
+    private final Map<URI,OWLDataType>       datatypeCache   = new HashMap<URI, OWLDataType>();
+    private final Map<String,String>         uriPrefixes     = new HashMap<String, String>();
 
-    private final Map<Shape,OWLClass>    shapeClassCache = new HashMap<Shape, OWLClass>();
-
-    
-    private final Map<Graphic,OWLTypedConstant> constants = new HashMap<Graphic, OWLTypedConstant>();
-    private final Map<String,Collection<Graphic>> noteGraphics = new HashMap<String, Collection<Graphic>>();
-    private final Map<Graphic,OWLEntity> entities = new HashMap<Graphic, OWLEntity>();
+    private final Map<Shape,OWLClass>          shapeClassCache    = new HashMap<Shape, OWLClass>();
+    private final Map<Shape,OWLIndividual>     shapeIndivCache    = new HashMap<Shape, OWLIndividual>();
+    private final Map<Shape,OWLDataProperty>   shapeDataPropCache = new HashMap<Shape, OWLDataProperty>();
+    private final Map<Shape,OWLObjectProperty> shapeObjPropCache  = new HashMap<Shape, OWLObjectProperty>();
+    private final Map<Shape,OWLDataType>       shapeDatatypeCache = new HashMap<Shape, OWLDataType>();    
+    private final Map<Shape,OWLConstant>       shapeConstants     = new HashMap<Shape, OWLConstant>();
     
     /**
      * @param omnigraffleFile the OG document to read
@@ -135,6 +138,19 @@ public class OntologyEmitter {
             } 
         }
     }
+
+    private OWLIndividual getOWLIndividual( Shape s ) {
+        OWLIndividual ind = shapeIndivCache.get( s );
+        if( ind == null ) {
+            URI uri = uriFromString( makeName( s, "Individual" ));  
+            if( uri == null ) return null;
+            
+            ind = getOWLIndividual( uri );
+            shapeIndivCache.put( s, ind );
+        }
+        
+        return ind;
+    }
     
     private OWLIndividual getOWLIndividual( URI name ) {
         OWLIndividual i = individualCache.get( name );
@@ -171,6 +187,56 @@ public class OntologyEmitter {
         }
         
         return c;
+    }
+    
+    private OWLDataProperty getOWLDataProperty( Shape s ) {
+        OWLDataProperty p = shapeDataPropCache.get( s );
+        if( p == null ) {            
+            URI uri = uriFromString( makeName( s, "Data Property" ));  
+            if( uri == null ) return null;
+            
+            p = getOWLDataProperty( uri );
+            shapeDataPropCache.put( s, p );
+        }
+        
+        return p;
+    }
+    
+    private OWLDataProperty getOWLDataProperty( URI uri ) {
+        OWLDataProperty p = dataPropCache.get( uri );
+        if( p == null ) {
+            p = factory.getOWLDataProperty( uri );
+            declare( p );
+
+            dataPropCache.put( uri, p );
+        }
+        
+        return p;
+    }
+
+    private OWLObjectProperty getOWLObjectProperty( Shape s ) {
+        OWLObjectProperty p = shapeObjPropCache.get( s );
+        if( p == null ) {            
+            URI uri = uriFromString( makeName( s, "Object Property" ));  
+            if( uri == null ) return null;
+            
+            p = getOWLObjectProperty( uri );
+            shapeObjPropCache.put( s, p );
+        }
+        
+        return p;
+    }
+    
+    private OWLObjectProperty getOWLObjectProperty( URI uri ) {
+        OWLObjectProperty p = objPropCache.get( uri );
+        if( p == null ) {
+            p = factory.getOWLObjectProperty( uri );
+            declare( p );
+
+            objPropCache.put( uri, p );
+        }
+        
+        return p;
     }
     
     private void declare( OWLEntity entity ) {
@@ -257,6 +323,9 @@ public class OntologyEmitter {
      * Get the literal from a shape - as a string if not typed
      */
     private OWLConstant getLiteral( Shape s ) {
+        OWLConstant lit = shapeConstants.get( s );
+        if( lit != null ) return lit;
+        
         String text = s.text;
         if( text == null ) text = "";
         else text = text.trim();
@@ -270,11 +339,14 @@ public class OntologyEmitter {
                 note = note.substring( XSD_PREFIX.length() );
                 
                 OWLDataType type = factory.getOWLDataType( URI.create( XSD_URI + note ));
-                return factory.getOWLTypedConstant( text, type );
+                lit = factory.getOWLTypedConstant( text, type );
             }
         }
-                
-        return factory.getOWLTypedConstant( text );
+        
+        if( lit == null ) lit = factory.getOWLTypedConstant( text );
+        shapeConstants.put( s, lit );
+        
+        return lit;
     }
     
     /**
@@ -403,7 +475,21 @@ public class OntologyEmitter {
                 getOWLClass( shape );
                 return;
             }
+
+            if( OntoNote.Individual.matches( shape ) ) {
+                getOWLIndividual( shape );
+                return;
+            }
             
+            if( OntoNote.DataProperty.matches( shape ) ) {
+                getOWLDataProperty( shape );
+                return;
+            }
+
+            if( OntoNote.ObjectProperty.matches( shape ) ) {
+                getOWLObjectProperty( shape );
+                return;
+            }
         }
 
         @Override
