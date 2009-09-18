@@ -18,7 +18,7 @@ public class Line extends Graphic implements GraphicContainer, Connector {
     
     /** Ordered, from tail to head */
     public Collection<Shape> labels = labelMap.values();            
-    
+
     /** @see org.epistem.diagram.model.Connector#getHead() */
     public Graphic getHead() {
         return head;
@@ -34,6 +34,11 @@ public class Line extends Graphic implements GraphicContainer, Connector {
         return new ArrayList<Graphic>( labels ).iterator();
     }
     
+    @Override
+    public boolean isSolid() {
+        return isSolid;
+    }
+
     /**
      * Accept a visitor
      */

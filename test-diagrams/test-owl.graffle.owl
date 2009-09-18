@@ -91,6 +91,101 @@
     
 
 
+    <!-- http://foobar.com/ontologies/foo#ClassA -->
+
+    <owl:Class rdf:about="#ClassA"/>
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#ClassB -->
+
+    <owl:Class rdf:about="#ClassB">
+        <rdfs:subClassOf rdf:resource="#ClassA"/>
+    </owl:Class>
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#ClassC -->
+
+    <owl:Class rdf:about="#ClassC">
+        <rdfs:subClassOf rdf:resource="#ClassB"/>
+        <rdfs:subClassOf rdf:resource="#ClassD"/>
+    </owl:Class>
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#ClassD -->
+
+    <owl:Class rdf:about="#ClassD">
+        <owl:equivalentClass rdf:resource="#ClassE"/>
+    </owl:Class>
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#ClassE -->
+
+    <owl:Class rdf:about="#ClassE"/>
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#ClassF -->
+
+    <owl:Class rdf:about="#ClassF">
+        <owl:disjointWith rdf:resource="#ClassG"/>
+    </owl:Class>
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#ClassG -->
+
+    <owl:Class rdf:about="#ClassG">
+        <owl:disjointWith rdf:resource="#ClassI"/>
+    </owl:Class>
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#ClassH -->
+
+    <owl:Class rdf:about="#ClassH"/>
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#ClassI -->
+
+    <owl:Class rdf:about="#ClassI"/>
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#ClassJ -->
+
+    <owl:Class rdf:about="#ClassJ"/>
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#ClassK -->
+
+    <owl:Class rdf:about="#ClassK"/>
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#ClassL -->
+
+    <owl:Class rdf:about="#ClassL"/>
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#ClassM -->
+
+    <owl:Class rdf:about="#ClassM"/>
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#ClassN -->
+
+    <owl:Class rdf:about="#ClassN"/>
+    
+
+
     <!-- http://foobar.com/ontologies/foo#FooBarA -->
 
     <owl:Class rdf:about="#FooBarA"/>
@@ -129,4 +224,24 @@
     <!-- http://foobar.com/ontologies/foo#IndividualB -->
 
     <owl:Thing rdf:about="#IndividualB"/>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // General axioms
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    <rdf:Description>
+        <rdf:type rdf:resource="&owl2;AllDisjointClasses"/>
+        <owl2:members rdf:parseType="Collection">
+            <rdf:Description rdf:about="#ClassH"/>
+            <rdf:Description rdf:about="#ClassI"/>
+            <rdf:Description rdf:about="#ClassJ"/>
+            <rdf:Description rdf:about="#ClassK"/>
+        </owl2:members>
+    </rdf:Description>
 </rdf:RDF>

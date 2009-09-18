@@ -1,5 +1,6 @@
 package org.epistem.diagram.model;
 
+import java.awt.geom.Rectangle2D;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -21,6 +22,7 @@ public abstract class Graphic {
     public final Collection<Connector> incoming = new HashSet<Connector>();
     public final Collection<Connector> outgoing = new HashSet<Connector>();
     public GraphicContainer parent;
+    public final double x, y;
     
     protected OGGraphic ogg;
     
@@ -37,6 +39,10 @@ public abstract class Graphic {
         isSolid = ogg.strokePattern() == 0;
         
         page.graphics.put( ogg.id(), this );
+        
+        Rectangle2D bounds = ogg.bounds();
+        x = bounds.getCenterX();
+        y = bounds.getCenterY();
     }
     
     static Graphic make( OGGraphic ogg, GraphicContainer parent, Page page ) {

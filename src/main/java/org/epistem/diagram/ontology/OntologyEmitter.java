@@ -4,8 +4,11 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.net.URI;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import org.epistem.diagram.model.*;
 import org.epistem.graffle.OmniGraffleDoc;
@@ -28,7 +31,10 @@ public class OntologyEmitter {
      * The graphic notes used to indicate ontology elements
      */
     private static enum OntoNote {
-        Ontology, Imports, Individual, Class, DataProperty, ObjectProperty, DataType;
+        Ontology, Imports, 
+        Individual, Class, DataProperty, ObjectProperty, DataType,
+        Extends, Equivalent, Disjoint, DisjointUnion, Key
+        ;
      
         /** Whether this note matches a graphic */
         public boolean matches( Graphic g ) {
@@ -57,6 +63,9 @@ public class OntologyEmitter {
     private final Map<Shape,OWLObjectProperty> shapeObjPropCache  = new HashMap<Shape, OWLObjectProperty>();
     private final Map<Shape,OWLDataType>       shapeDatatypeCache = new HashMap<Shape, OWLDataType>();    
     private final Map<Shape,OWLConstant>       shapeConstants     = new HashMap<Shape, OWLConstant>();
+    
+    //connectors that have already been processed as part of a disjoint axiom
+    private final Set<Connector> disjointConnectors = new HashSet<Connector>();
     
     /**
      * @param omnigraffleFile the OG document to read
@@ -112,7 +121,143 @@ public class OntologyEmitter {
         //process all the graphics
         diagram.accept( new Visitor() ); 
 
+        processClassAxioms();
+        
         cleanupIndividuals();
+    }
+    
+    private void processClassAxioms() {
+        for( Shape s : shapeClassCache.keySet() ) {
+            OWLClass cls = shapeClassCache.get( s );
+            
+            //SubClassOf
+            for( OWLClass supercls : getLineTargetClasses( s, OntoNote.Extends, null ) ) {
+                addAxiom( factory.getOWLSubClassAxiom( cls, supercls ) );
+            }
+            
+            //EquivalentClasses
+            for( OWLClass eqivcls : getLineTargetClasses( s, OntoNote.Equivalent, null ) ) {
+                addAxiom( factory.getOWLEquivalentClassesAxiom( cls, eqivcls ) );
+            }
+            
+            //DisjointClasses
+            for( Set<OWLClass> disjoints : getDisjointClasses( s ) ) {
+                addAxiom( factory.getOWLDisjointClassesAxiom( disjoints ) );
+            }
+        }
+    }
+
+    private Collection<Set<OWLClass>> getDisjointClasses( Shape start ) {
+        Collection<Set<OWLClass>> disGroups = new HashSet<Set<OWLClass>>();
+        
+        for( Connector line : start.outgoing ) { 
+            //no need to check incoming since there will always be at least one
+            //shape at the tail end of a line in a group of disjoint classes
+            
+            if( OntoNote.Disjoint.matches( (Graphic) line) ) {
+                Collection<Shape> disShapes = gatherDisjoints( line, null );
+                if( disShapes.isEmpty() ) continue;
+                
+                Set<OWLClass> disClasses = new HashSet<OWLClass>();
+                disGroups.add( disClasses );
+                for( Shape s : disShapes ) {
+                    OWLClass cls = shapeClassCache.get( s );
+                    if( cls == null ) graphicException( s, "Target of disjoint line is not an OWL class" );
+
+                    disClasses.add( cls );
+                }
+            }
+        }
+        
+        return disGroups;
+    }
+    
+    /**
+     * Gather all the shapes that are reachable via the given line
+     */
+    private Collection<Shape> gatherDisjoints( Connector line, Collection<Shape> shapes ) {
+        if( shapes == null ) shapes = new HashSet<Shape>();
+
+        //avoid visiting the same line more than once
+        if( disjointConnectors.contains( line ) ) return shapes;
+        disjointConnectors.add( line );
+        
+        if( ! OntoNote.Disjoint.matches( (Graphic) line ) ) {
+            graphicException( (Graphic) line, "Line is not a 'disjoint' line" );
+        }        
+        
+        Graphic head = line.getHead();
+        Graphic tail = line.getTail();
+        
+        if( head == null || tail == null ) graphicException( (Graphic) line, "Disjoint line is missing a head or tail" );
+        
+        if( head instanceof Connector ) {
+            gatherDisjoints( (Connector) head, shapes );
+        }
+        else if( head instanceof Shape ) {
+            shapes.add( (Shape) head );
+        }
+        else {
+            graphicException( head, "Head of disjoint line is not a simple shape" );
+        }
+        
+        if( tail instanceof Connector ) {
+            gatherDisjoints( (Connector) tail, shapes );
+        }
+        else if( tail instanceof Shape ) {
+            shapes.add( (Shape) tail );
+        }
+        else {
+            graphicException( tail, "Tail of disjoint line is not a simple shape" );
+        }
+        
+        for( Connector c : ((Graphic) line).incoming ) gatherDisjoints( c, shapes );
+        for( Connector c : ((Graphic) line).outgoing ) gatherDisjoints( c, shapes );
+        
+        return shapes;
+    }
+    
+    private Collection<OWLClass> getLineTargetClasses( Shape origin, OntoNote note, Boolean solid ) {
+        Collection<Shape> shapes = getLineTargets( origin, note, solid );
+        if( shapes.isEmpty() ) return Collections.emptySet();
+        
+        Collection<OWLClass> classes = new HashSet<OWLClass>();
+        for( Shape s : shapes ) {
+            OWLClass cls = shapeClassCache.get( s );
+            if( cls == null ) graphicException( s, "Target of " + note + " is not an OWL class" );
+            classes.add( cls );
+        }
+        
+        return classes;
+    }
+    
+    private void graphicException( Graphic g, String message ) {
+        throw new RuntimeException( "Sheet '" + g.page.title + "' (" + ((int) g.x) + "," + ((int) g.y) + "): " + message );
+    }
+    
+    /**
+     * Get the shapes targeted via lines with a given note
+     * 
+     * @param origin the start shape
+     * @param note the note for the lines
+     * @param solid whether the line are solid or dashed (null for don't care)
+     * @return shapes targeted by matching lines 
+     */
+    private Collection<Shape> getLineTargets( Shape origin, OntoNote note, Boolean solid ) {
+        Set<Shape> targets = new HashSet<Shape>();
+        
+        for( Connector line : origin.outgoing ) {
+            if( solid != null && solid != line.isSolid() ) continue;
+            
+            if( note.matches( (Graphic) line ) ) {
+                Graphic g = line.getHead();
+                if( g != null && g instanceof Shape ) {
+                    targets.add( (Shape) g ); 
+                }
+            }
+        }
+        
+        return targets;
     }
     
     /**
@@ -156,7 +301,7 @@ public class OntologyEmitter {
         OWLIndividual i = individualCache.get( name );
         if( i == null ) {
             i = factory.getOWLIndividual( name );
-            declare( i );
+            if( isLocalName( name ) ) declare( i );
 
             individualCache.put( name, i );
         }
@@ -181,7 +326,8 @@ public class OntologyEmitter {
         OWLClass c = classCache.get( classURI );
         if( c == null ) {
             c = factory.getOWLClass( classURI );
-            declare( c );
+            
+            if( isLocalName( classURI ) ) declare( c );
 
             classCache.put( classURI, c );
         }
@@ -206,7 +352,7 @@ public class OntologyEmitter {
         OWLDataProperty p = dataPropCache.get( uri );
         if( p == null ) {
             p = factory.getOWLDataProperty( uri );
-            declare( p );
+            if( isLocalName( uri ) ) declare( p );
 
             dataPropCache.put( uri, p );
         }
@@ -231,7 +377,7 @@ public class OntologyEmitter {
         OWLObjectProperty p = objPropCache.get( uri );
         if( p == null ) {
             p = factory.getOWLObjectProperty( uri );
-            declare( p );
+            if( isLocalName( uri ) ) declare( p );
 
             objPropCache.put( uri, p );
         }
@@ -306,10 +452,8 @@ public class OntologyEmitter {
     /**
      * Whether the given name is in the local namespace
      */
-    private boolean isLocalName( String s ) {
-        if( s.startsWith( "http://" ) ) return false;
-        if( s.indexOf( ":" ) > 0 ) return false;
-        return true;
+    private boolean isLocalName( URI uri ) {
+        return uri.toString().startsWith( ontologyURI.toString() + "#" );
     }
 
     /**

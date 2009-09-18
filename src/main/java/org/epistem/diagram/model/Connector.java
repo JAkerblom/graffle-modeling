@@ -10,4 +10,5 @@ public interface Connector {
     public Graphic getHead();
     public Graphic getTail();
 
+    public boolean isSolid();
 }
