@@ -29,6 +29,11 @@ public class ConnectorShape extends Shape implements Connector {
        visitor.visitConnectorShape( this );
     }
     
+    @Override
+    public boolean isSolid() {
+        return isSolid;
+    }
+    
     ConnectorShape( OGGraphic ogg, GraphicContainer parent, Page page ) {
         super( ogg, parent, page );
     }
