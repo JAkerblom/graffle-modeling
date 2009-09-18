@@ -186,6 +186,24 @@
     
 
 
+    <!-- http://foobar.com/ontologies/foo#ClassO -->
+
+    <owl:Class rdf:about="#ClassO"/>
+    
+
+
+    <!-- http://foobar.com/ontologies/foo#ClassP -->
+
+    <owl:Class rdf:about="#ClassP">
+        <owl2:disjointUnionOf rdf:parseType="Collection">
+            <rdf:Description rdf:about="#ClassL"/>
+            <rdf:Description rdf:about="#ClassM"/>
+            <rdf:Description rdf:about="#ClassN"/>
+        </owl2:disjointUnionOf>
+    </owl:Class>
+    
+
+
     <!-- http://foobar.com/ontologies/foo#FooBarA -->
 
     <owl:Class rdf:about="#FooBarA"/>
