@@ -131,12 +131,12 @@ public class OntologyEmitter {
             OWLClass cls = shapeClassCache.get( s );
             
             //SubClassOf
-            for( OWLClass supercls : getLineTargetClasses( s, OntoNote.Extends, null ) ) {
+            for( OWLClass supercls : getLineTargetClasses( s, OntoNote.Extends, null, true ) ) {
                 addAxiom( factory.getOWLSubClassAxiom( cls, supercls ) );
             }
             
             //EquivalentClasses
-            for( OWLClass eqivcls : getLineTargetClasses( s, OntoNote.Equivalent, null ) ) {
+            for( OWLClass eqivcls : getLineTargetClasses( s, OntoNote.Equivalent, null, true ) ) {
                 addAxiom( factory.getOWLEquivalentClassesAxiom( cls, eqivcls ) );
             }
             
@@ -144,6 +144,13 @@ public class OntologyEmitter {
             for( Set<OWLClass> disjoints : getDisjointClasses( s ) ) {
                 addAxiom( factory.getOWLDisjointClassesAxiom( disjoints ) );
             }
+            
+            //DisjointUnion
+            Set<OWLClass> disjoints = getLineTargetClasses( s, OntoNote.DisjointUnion, null, false );
+            if( ! disjoints.isEmpty() ) addAxiom( factory.getOWLDisjointUnionAxiom( cls, disjoints ) );
+            
+            //Key
+            //TODO: OWL API does not yet support HasKey
         }
     }
 
@@ -217,11 +224,11 @@ public class OntologyEmitter {
         return shapes;
     }
     
-    private Collection<OWLClass> getLineTargetClasses( Shape origin, OntoNote note, Boolean solid ) {
-        Collection<Shape> shapes = getLineTargets( origin, note, solid );
+    private Set<OWLClass> getLineTargetClasses( Shape origin, OntoNote note, Boolean solid, boolean outgoing  ) {
+        Collection<Shape> shapes = getLineTargets( origin, note, solid, outgoing );
         if( shapes.isEmpty() ) return Collections.emptySet();
         
-        Collection<OWLClass> classes = new HashSet<OWLClass>();
+        Set<OWLClass> classes = new HashSet<OWLClass>();
         for( Shape s : shapes ) {
             OWLClass cls = shapeClassCache.get( s );
             if( cls == null ) graphicException( s, "Target of " + note + " is not an OWL class" );
@@ -230,6 +237,7 @@ public class OntologyEmitter {
         
         return classes;
     }
+
     
     private void graphicException( Graphic g, String message ) {
         throw new RuntimeException( "Sheet '" + g.page.title + "' (" + ((int) g.x) + "," + ((int) g.y) + "): " + message );
@@ -241,16 +249,17 @@ public class OntologyEmitter {
      * @param origin the start shape
      * @param note the note for the lines
      * @param solid whether the line are solid or dashed (null for don't care)
+     * @param outgoing true for outgoing, false for incoming
      * @return shapes targeted by matching lines 
      */
-    private Collection<Shape> getLineTargets( Shape origin, OntoNote note, Boolean solid ) {
+    private Collection<Shape> getLineTargets( Shape origin, OntoNote note, Boolean solid, boolean outgoing ) {
         Set<Shape> targets = new HashSet<Shape>();
         
-        for( Connector line : origin.outgoing ) {
+        for( Connector line : (outgoing ? origin.outgoing : origin.incoming )) {
             if( solid != null && solid != line.isSolid() ) continue;
             
             if( note.matches( (Graphic) line ) ) {
-                Graphic g = line.getHead();
+                Graphic g = outgoing ? line.getHead() : line.getTail();
                 if( g != null && g instanceof Shape ) {
                     targets.add( (Shape) g ); 
                 }
@@ -259,6 +268,7 @@ public class OntologyEmitter {
         
         return targets;
     }
+
     
     /**
      * Set up the initial namespaces
