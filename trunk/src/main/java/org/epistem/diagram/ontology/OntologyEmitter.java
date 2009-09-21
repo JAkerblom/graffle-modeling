@@ -33,7 +33,8 @@ public class OntologyEmitter {
     private static enum OntoNote {
         Ontology, Imports, 
         Individual, Class, DataProperty, ObjectProperty, DataType,
-        Extends, Equivalent, Disjoint, DisjointUnion, Key
+        Extends, Equivalent, Disjoint, DisjointUnion, Key,
+        Union, Intersection, Complement, Member, PropertyGrid
         ;
      
         /** Whether this note matches a graphic */
@@ -122,8 +123,54 @@ public class OntologyEmitter {
         diagram.accept( new Visitor() ); 
 
         processClassAxioms();
+        processClassExpressions();
         
         cleanupIndividuals();
+    }
+    
+    private void processClassExpressions() {
+        for( Shape s : shapeClassCache.keySet() ) {
+            OWLClass cls = shapeClassCache.get( s );
+
+            //Union
+            Set<OWLClass> classes = getLineTargetClasses( s, OntoNote.Union, true, true );
+            if( ! classes.isEmpty() ) {
+                addAxiom( factory.getOWLEquivalentClassesAxiom( cls, factory.getOWLObjectUnionOf( classes )));
+            }
+            classes = getLineTargetClasses( s, OntoNote.Union, false, true );
+            if( ! classes.isEmpty() ) {
+                addAxiom( factory.getOWLSubClassAxiom( cls, factory.getOWLObjectUnionOf( classes )));
+            }
+            
+            //Intersection
+            classes = getLineTargetClasses( s, OntoNote.Intersection, true, true );
+            if( ! classes.isEmpty() ) {
+                addAxiom( factory.getOWLEquivalentClassesAxiom( cls, factory.getOWLObjectIntersectionOf( classes )));
+            }
+            classes = getLineTargetClasses( s, OntoNote.Intersection, false, true );
+            if( ! classes.isEmpty() ) {
+                addAxiom( factory.getOWLSubClassAxiom( cls, factory.getOWLObjectIntersectionOf( classes )));
+            }
+            
+            //Complement
+            for( OWLClass other : getLineTargetClasses( s, OntoNote.Complement, true, true ) ) {
+                addAxiom( factory.getOWLEquivalentClassesAxiom( cls, factory.getOWLObjectComplementOf( other ) ) );
+            }
+            for( OWLClass other : getLineTargetClasses( s, OntoNote.Complement, false, true ) ) {
+                addAxiom( factory.getOWLSubClassAxiom( cls, factory.getOWLObjectComplementOf( other ) ) );
+            }
+            
+            //OneOf
+            Set<OWLIndividual> indivs = getLineTargetIndivs( s, OntoNote.Member, true, true );
+            if( ! indivs.isEmpty() ) {
+                addAxiom( factory.getOWLEquivalentClassesAxiom( cls, factory.getOWLObjectOneOf( indivs )));
+            }
+            indivs = getLineTargetIndivs( s, OntoNote.Member, false, true );
+            if( ! indivs.isEmpty() ) {
+                addAxiom( factory.getOWLSubClassAxiom( cls, factory.getOWLObjectOneOf( indivs )));
+            }
+            
+        }
     }
     
     private void processClassAxioms() {
@@ -238,6 +285,19 @@ public class OntologyEmitter {
         return classes;
     }
 
+    private Set<OWLIndividual> getLineTargetIndivs( Shape origin, OntoNote note, Boolean solid, boolean outgoing  ) {
+        Collection<Shape> shapes = getLineTargets( origin, note, solid, outgoing );
+        if( shapes.isEmpty() ) return Collections.emptySet();
+        
+        Set<OWLIndividual> indivs = new HashSet<OWLIndividual>();
+        for( Shape s : shapes ) {
+            OWLIndividual ind = shapeIndivCache.get( s );
+            if( ind == null ) graphicException( s, "Target of " + note + " is not an OWL individual" );
+            indivs.add( ind );
+        }
+        
+        return indivs;
+    }
     
     private void graphicException( Graphic g, String message ) {
         throw new RuntimeException( "Sheet '" + g.page.title + "' (" + ((int) g.x) + "," + ((int) g.y) + "): " + message );
@@ -414,7 +474,7 @@ public class OntologyEmitter {
         
         if( text == null ) return null;
         StringBuilder buff = new StringBuilder();
-        String[] words = text.split( "\\s" );
+        String[] words = text.replace( '\n', ' ' ).split( "\\s+" );
         if( words.length == 0 ) return null;
         
         for( String word : words ) {
