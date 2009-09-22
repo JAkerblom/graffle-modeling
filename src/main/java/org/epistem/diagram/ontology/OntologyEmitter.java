@@ -3,6 +3,7 @@ package org.epistem.diagram.ontology;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -10,13 +11,37 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.epistem.diagram.model.*;
+import org.epistem.diagram.model.Connector;
+import org.epistem.diagram.model.ConnectorShape;
+import org.epistem.diagram.model.Diagram;
+import org.epistem.diagram.model.DiagramVisitor;
+import org.epistem.diagram.model.Graphic;
+import org.epistem.diagram.model.Group;
+import org.epistem.diagram.model.Line;
+import org.epistem.diagram.model.Page;
+import org.epistem.diagram.model.Shape;
+import org.epistem.diagram.model.Table;
 import org.epistem.graffle.OmniGraffleDoc;
 import org.semanticweb.owl.apibinding.OWLManager;
 import org.semanticweb.owl.io.DefaultOntologyFormat;
 import org.semanticweb.owl.io.OWLOntologyOutputTarget;
 import org.semanticweb.owl.io.StreamOutputTarget;
-import org.semanticweb.owl.model.*;
+import org.semanticweb.owl.model.OWLAxiom;
+import org.semanticweb.owl.model.OWLClass;
+import org.semanticweb.owl.model.OWLConstant;
+import org.semanticweb.owl.model.OWLConstantAnnotation;
+import org.semanticweb.owl.model.OWLDataFactory;
+import org.semanticweb.owl.model.OWLDataProperty;
+import org.semanticweb.owl.model.OWLDataType;
+import org.semanticweb.owl.model.OWLDeclarationAxiom;
+import org.semanticweb.owl.model.OWLEntity;
+import org.semanticweb.owl.model.OWLIndividual;
+import org.semanticweb.owl.model.OWLObjectProperty;
+import org.semanticweb.owl.model.OWLOntology;
+import org.semanticweb.owl.model.OWLOntologyChangeException;
+import org.semanticweb.owl.model.OWLOntologyCreationException;
+import org.semanticweb.owl.model.OWLOntologyManager;
+import org.semanticweb.owl.model.OWLProperty;
 
 /**
  * Reads a diagram and emits an OWL2 ontology
@@ -34,7 +59,8 @@ public class OntologyEmitter {
         Ontology, Imports, 
         Individual, Class, DataProperty, ObjectProperty, DataType,
         Extends, Equivalent, Disjoint, DisjointUnion, Key,
-        Union, Intersection, Complement, Member, PropertyGrid
+        Union, Intersection, Complement, Member, All, PropertyGrid, Property,
+        Cardinality
         ;
      
         /** Whether this note matches a graphic */
@@ -42,6 +68,19 @@ public class OntologyEmitter {
             if( g == null || g.metadata.notes == null ) return false;
             return name().equalsIgnoreCase( g.metadata.notes.trim() );
         }
+    }
+    
+    /**
+     * Represents a property line 
+     */
+    private class LineAndProperty {
+        OWLProperty<?,?> property;
+        Graphic source;
+        Graphic target;
+        boolean isSolid;
+        int cardinality     = -1;
+        int cardinalityLow  = -1;
+        int cardinalityHigh = -1;
     }
     
     private final OWLOntologyManager manager = OWLManager.createOWLOntologyManager();
@@ -170,6 +209,20 @@ public class OntologyEmitter {
                 addAxiom( factory.getOWLSubClassAxiom( cls, factory.getOWLObjectOneOf( indivs )));
             }
             
+            //All
+            for( LineAndProperty pline : getPropLines( s, OntoNote.All, true ) ) {
+                OWLClass target = getOWLClass( (Shape) pline.target );
+                addAxiom( factory.getOWLEquivalentClassesAxiom( 
+                    cls, factory.getOWLObjectAllRestriction( (OWLObjectProperty) pline.property, target ) ) );
+            }
+            for( LineAndProperty pline : getPropLines( s, OntoNote.All, false ) ) {
+                OWLClass target = getOWLClass( (Shape) pline.target );
+                addAxiom( factory.getOWLSubClassAxiom(  
+                    cls, factory.getOWLObjectAllRestriction( (OWLObjectProperty) pline.property, target ) ) );
+            }
+            
+            //HasValue and Some
+            Collection<LineAndProperty> laps = getPropLines( s, OntoNote.Property, null );
         }
     }
     
@@ -272,12 +325,12 @@ public class OntologyEmitter {
     }
     
     private Set<OWLClass> getLineTargetClasses( Shape origin, OntoNote note, Boolean solid, boolean outgoing  ) {
-        Collection<Shape> shapes = getLineTargets( origin, note, solid, outgoing );
+        Collection<Graphic> shapes = getLineTargets( origin, note, solid, outgoing );
         if( shapes.isEmpty() ) return Collections.emptySet();
         
         Set<OWLClass> classes = new HashSet<OWLClass>();
-        for( Shape s : shapes ) {
-            OWLClass cls = shapeClassCache.get( s );
+        for( Graphic s : shapes ) {            
+            OWLClass cls = (s instanceof Shape) ? shapeClassCache.get( (Shape) s ) : null;
             if( cls == null ) graphicException( s, "Target of " + note + " is not an OWL class" );
             classes.add( cls );
         }
@@ -286,11 +339,17 @@ public class OntologyEmitter {
     }
 
     private Set<OWLIndividual> getLineTargetIndivs( Shape origin, OntoNote note, Boolean solid, boolean outgoing  ) {
-        Collection<Shape> shapes = getLineTargets( origin, note, solid, outgoing );
+        Collection<Graphic> shapes = getLineTargets( origin, note, solid, outgoing );
         if( shapes.isEmpty() ) return Collections.emptySet();
         
         Set<OWLIndividual> indivs = new HashSet<OWLIndividual>();
-        for( Shape s : shapes ) {
+        for( Graphic s : shapes ) {
+            
+            if((s instanceof Table) && OntoNote.PropertyGrid.matches( s ) ) {
+                indivs.addAll( getGridIndividuals( (Table) s ) ); 
+                continue;
+            }            
+            
             OWLIndividual ind = shapeIndivCache.get( s );
             if( ind == null ) graphicException( s, "Target of " + note + " is not an OWL individual" );
             indivs.add( ind );
@@ -304,24 +363,65 @@ public class OntologyEmitter {
     }
     
     /**
-     * Get the shapes targeted via lines with a given note
+     * Get property lines
+     */
+    private Collection<LineAndProperty> getPropLines( Shape origin, OntoNote note, Boolean solid ) {
+        Set<LineAndProperty> lines = new HashSet<LineAndProperty>();
+        
+        for( Connector c : origin.outgoing ) {
+            if( solid != null && solid != c.isSolid() ) continue;
+            if( !( c instanceof Line) ) continue;
+            Line line = (Line) c;
+            
+            if( note.matches( line ) ) {
+                LineAndProperty lap = new LineAndProperty();
+                lap.source   = line.tail;
+                lap.target   = line.head;
+                lap.isSolid  = line.isSolid;
+                
+                for( Shape label : line.labels ) {
+
+                    if( OntoNote.Cardinality.matches( label ) ) {
+                        String cardStr = label.text.trim();
+                        
+                        
+                    }
+
+                    if( OntoNote.DataProperty.matches( label )
+                     || OntoNote.ObjectProperty.matches( label )) {
+                        if( lap.property != null ) graphicException( label, "More than one property on a property line" );
+                        
+                        OWLProperty<?,?> prop = getOWLProperty( label );                    
+                        lap.property = prop;                    
+                    }
+                }
+
+                lines.add( lap );
+            }
+        }
+        
+        return lines;
+    }
+    
+    /**
+     * Get the graphics targeted via lines with a given note
      * 
      * @param origin the start shape
      * @param note the note for the lines
      * @param solid whether the line are solid or dashed (null for don't care)
      * @param outgoing true for outgoing, false for incoming
-     * @return shapes targeted by matching lines 
+     * @return graphics targeted by matching lines 
      */
-    private Collection<Shape> getLineTargets( Shape origin, OntoNote note, Boolean solid, boolean outgoing ) {
-        Set<Shape> targets = new HashSet<Shape>();
+    private Collection<Graphic> getLineTargets( Shape origin, OntoNote note, Boolean solid, boolean outgoing ) {
+        Set<Graphic> targets = new HashSet<Graphic>();
         
         for( Connector line : (outgoing ? origin.outgoing : origin.incoming )) {
             if( solid != null && solid != line.isSolid() ) continue;
             
             if( note.matches( (Graphic) line ) ) {
                 Graphic g = outgoing ? line.getHead() : line.getTail();
-                if( g != null && g instanceof Shape ) {
-                    targets.add( (Shape) g ); 
+                if( g != null ) {
+                    targets.add( g ); 
                 }
             }
         }
@@ -455,6 +555,18 @@ public class OntologyEmitter {
         return p;
     }
     
+    //Get a cached property
+    private OWLProperty<?,?> getOWLProperty( Shape s ) {
+        OWLProperty<?,?> prop = shapeDataPropCache.get( s );
+        if( prop != null ) return prop;
+        
+        prop = shapeObjPropCache.get( s );
+        if( prop != null ) return prop;
+        
+        graphicException( s, "Not a data or object property" );
+        return null;
+    }
+    
     private void declare( OWLEntity entity ) {
         OWLDeclarationAxiom ax = factory.getOWLDeclarationAxiom( entity );
         addAxiom( ax );
@@ -561,6 +673,40 @@ public class OntologyEmitter {
         shapeConstants.put( s, lit );
         
         return lit;
+    }
+    
+    /**
+     * Get the subject individuals from a property grid
+     */
+    private Collection<OWLIndividual> getGridIndividuals( Table table ) {
+        Collection<OWLIndividual> inds = new ArrayList<OWLIndividual>();
+        
+        int numRows = table.rowCount();
+        
+        for( int i = 1; i < numRows; i++ ) { //skip top row
+            Shape[] row = table.table[i];            
+            Shape indShape = row[0];
+            inds.add( getOWLIndividual( indShape ) );
+        }                
+
+        return inds;
+    }
+    
+    //Add a property assertion triple
+    private void makePropertyAssertion( Shape ind, Shape prop, Shape value ) {
+        OWLIndividual individual = getOWLIndividual( ind );
+        OWLProperty<?,?> owlProp = getOWLProperty( prop );
+        
+        if( owlProp instanceof OWLDataProperty ) {
+            OWLDataProperty dataProp = (OWLDataProperty) owlProp;
+            OWLConstant constant = getLiteral( value );
+            addAxiom( factory.getOWLDataPropertyAssertionAxiom( individual, dataProp, constant ) );
+        }
+        else if( owlProp instanceof OWLObjectProperty ) {
+            OWLObjectProperty objProp = (OWLObjectProperty) owlProp;
+            OWLIndividual target = getOWLIndividual( value );
+            addAxiom( factory.getOWLObjectPropertyAssertionAxiom( individual, objProp, target ) );
+        }
     }
     
     /**
@@ -708,13 +854,31 @@ public class OntologyEmitter {
 
         @Override
         public void visitTableEnd( Table table ) {
-            // TODO Auto-generated method stub
-            
+            if( OntoNote.PropertyGrid.matches( table ) ) {
+                int numCols = table.colCount();
+                int numRows = table.rowCount();
+                
+                Shape[] row0 = table.table[0];
+                
+                for( int i = 1; i < numRows; i++ ) {
+                    Shape[] row = table.table[i];
+                    
+                    Shape indShape = row[0];
+                    
+                    for( int j = 1; j < numCols; j++ ) {
+                        Shape propShape = row0[j];
+                        Shape valShape  = row[j];
+                        
+                        makePropertyAssertion( indShape, propShape, valShape );
+                    }
+                }                
+            }            
         }
 
         @Override
         public DiagramVisitor visitTableStart( Table table ) {
-            // TODO Auto-generated method stub
+
+            //detect embedded individuals and properties
             return this;
         }
         

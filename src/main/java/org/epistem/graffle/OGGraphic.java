@@ -309,6 +309,7 @@ public final class OGGraphic {
         if( text == null ) return null;
 
         String s = (String) text.get( "Text" );
+        if( s == null ) return null;
 
         DefaultStyledDocument doc = new DefaultStyledDocument();
         RTFEditorKit kit = new RTFEditorKit();
