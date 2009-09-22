@@ -30,7 +30,7 @@ public class OntologyEmitter {
         Individual, Class, DataProperty, ObjectProperty, DataType,
         Extends, Equivalent, Disjoint, DisjointUnion, Key,
         Union, Intersection, Complement, Member, All, PropertyGrid, Property,
-        Cardinality
+        Cardinality, Properties, Self, Any
         ;
      
         /** Whether this note matches a graphic */
@@ -51,6 +51,10 @@ public class OntologyEmitter {
         int cardinality     = -1;
         int cardinalityLow  = -1;
         int cardinalityHigh = -1;
+        
+        public boolean hasCardinality() {
+            return (cardinality >= 0) || (cardinalityLow >= 0) || (cardinalityHigh >= 0);
+        }
     }
     
     private final OWLOntologyManager manager = OWLManager.createOWLOntologyManager();
@@ -191,21 +195,112 @@ public class OntologyEmitter {
                     cls, factory.getOWLObjectAllRestriction( (OWLObjectProperty) pline.property, target ) ) );
             }
             
-            //HasValue and Some
+            //HasValue, HasSelf, Cardinality and Some
             for( LineAndProperty lap : getPropLines( s, OntoNote.Property, null )) {
-                //Some
-                if( OntoNote.Class.matches( lap.target ) ) {
+                Collection<OWLDescription> descs = new ArrayList<OWLDescription>();
+                
+                //Cardinality
+                if( lap.hasCardinality() ) {
                     OWLObjectPropertyExpression objprop = (OWLObjectProperty) lap.property;
-                    OWLObjectSomeRestriction some = factory.getOWLObjectSomeRestriction( objprop, getOWLClass( (Shape) lap.target ) );
-                    OWLAxiom axiom = lap.isSolid ?
-                                         factory.getOWLEquivalentClassesAxiom( cls, some ) :
-                                         factory.getOWLSubClassAxiom( cls, some );                    
-                    addAxiom( axiom );
+                    
+                    if( OntoNote.Any.matches( lap.target ) ) {
+                        if( lap.cardinality >= 0 ) {
+                            descs.add( factory.getOWLObjectExactCardinalityRestriction( objprop, lap.cardinality ));
+                        }
+                        if( lap.cardinalityLow >= 0 ) {
+                            descs.add( factory.getOWLObjectMinCardinalityRestriction( objprop, lap.cardinalityLow ));
+                        } 
+                        if( lap.cardinalityHigh >= 0 ) {
+                            descs.add( factory.getOWLObjectMaxCardinalityRestriction( objprop, lap.cardinalityHigh ));
+                        } 
+                    }                    
+                    else if( OntoNote.Class.matches( lap.target ) ) {
+                        OWLClass target = getOWLClass( (Shape) lap.target );
+                        
+                        if( lap.cardinality >= 0 ) {
+                            descs.add( factory.getOWLObjectExactCardinalityRestriction( objprop, lap.cardinality, target ));
+                        }
+                        if( lap.cardinalityLow >= 0 ) {
+                            descs.add( factory.getOWLObjectMinCardinalityRestriction( objprop, lap.cardinalityLow, target ));
+                        } 
+                        if( lap.cardinalityHigh >= 0 ) {
+                            descs.add( factory.getOWLObjectMaxCardinalityRestriction( objprop, lap.cardinalityHigh, target ));
+                        } 
+                    }
+                }
+                
+                //Some
+                else if( OntoNote.Class.matches( lap.target ) ) {
+                    OWLObjectPropertyExpression objprop = (OWLObjectProperty) lap.property;
+                    descs.add( factory.getOWLObjectSomeRestriction( objprop, getOWLClass( (Shape) lap.target ) ));
+                }
+                
+                //Self
+                else if( OntoNote.Self.matches( lap.target ) ) {                    
+                    descs.add( factory.getOWLObjectSelfRestriction( (OWLObjectProperty) lap.property ));
+                }
+                
+                //Property table
+                else if( lap.target instanceof Table && OntoNote.Properties.matches( lap.target )) {
+                    Collection<OWLValueRestriction<?,?>> restrs = getPropRestrictions( (Table) lap.target );
+                    for( OWLValueRestriction<?,?> r : restrs ) {
+                        
+                        OWLAxiom axiom = lap.isSolid ?
+                                factory.getOWLEquivalentClassesAxiom( cls, r ) :
+                                factory.getOWLSubClassAxiom( cls, r );                    
+                        addAxiom( axiom );
+                    }                    
+                    
                     continue;
                 }
                 
+                //HasValue
+                else {
+                    
+                    if( lap.property instanceof OWLDataProperty ) {
+                        OWLDataProperty dataProp = (OWLDataProperty) lap.property;
+                        OWLConstant constant = getLiteral( (Shape) lap.target );
+                        descs.add( factory.getOWLDataValueRestriction( dataProp, constant ));
+                    }
+                    else if( lap.property instanceof OWLObjectProperty ) {
+                        OWLObjectProperty objProp = (OWLObjectProperty) lap.property;
+                        OWLIndividual target = getOWLIndividual( (Shape) lap.target );
+                        descs.add( factory.getOWLObjectValueRestriction( objProp, target ));
+                    }
+                }
+
+                for( OWLDescription desc : descs ) {
+                    OWLAxiom axiom = lap.isSolid ?
+                            factory.getOWLEquivalentClassesAxiom( cls, desc ) :
+                            factory.getOWLSubClassAxiom( cls, desc );                    
+                    addAxiom( axiom );
+                }
             }            
         }
+    }
+    
+    private Collection<OWLValueRestriction<?,?>> getPropRestrictions( Table table ) {
+        Collection<OWLValueRestriction<?,?>> restrs = new ArrayList<OWLValueRestriction<?,?>>();
+        
+        for( Shape[] row : table.table ) {
+            Shape prop  = row[0];
+            Shape value = row[1];
+            
+            OWLProperty<?,?> owlProp = getOWLProperty( prop );
+            
+            if( owlProp instanceof OWLDataProperty ) {
+                OWLDataProperty dataProp = (OWLDataProperty) owlProp;
+                OWLConstant constant = getLiteral( value );
+                restrs.add( factory.getOWLDataValueRestriction( dataProp, constant ));
+            }
+            else if( owlProp instanceof OWLObjectProperty ) {
+                OWLObjectProperty objProp = (OWLObjectProperty) owlProp;
+                OWLIndividual target = getOWLIndividual( value );
+                restrs.add( factory.getOWLObjectValueRestriction( objProp, target ));
+            }
+        }
+        
+        return restrs;
     }
     
     private void processClassAxioms() {
