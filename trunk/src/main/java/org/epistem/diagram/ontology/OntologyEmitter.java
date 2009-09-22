@@ -3,45 +3,15 @@ package org.epistem.diagram.ontology;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
-import org.epistem.diagram.model.Connector;
-import org.epistem.diagram.model.ConnectorShape;
-import org.epistem.diagram.model.Diagram;
-import org.epistem.diagram.model.DiagramVisitor;
-import org.epistem.diagram.model.Graphic;
-import org.epistem.diagram.model.Group;
-import org.epistem.diagram.model.Line;
-import org.epistem.diagram.model.Page;
-import org.epistem.diagram.model.Shape;
-import org.epistem.diagram.model.Table;
+import org.epistem.diagram.model.*;
 import org.epistem.graffle.OmniGraffleDoc;
 import org.semanticweb.owl.apibinding.OWLManager;
 import org.semanticweb.owl.io.DefaultOntologyFormat;
 import org.semanticweb.owl.io.OWLOntologyOutputTarget;
 import org.semanticweb.owl.io.StreamOutputTarget;
-import org.semanticweb.owl.model.OWLAxiom;
-import org.semanticweb.owl.model.OWLClass;
-import org.semanticweb.owl.model.OWLConstant;
-import org.semanticweb.owl.model.OWLConstantAnnotation;
-import org.semanticweb.owl.model.OWLDataFactory;
-import org.semanticweb.owl.model.OWLDataProperty;
-import org.semanticweb.owl.model.OWLDataType;
-import org.semanticweb.owl.model.OWLDeclarationAxiom;
-import org.semanticweb.owl.model.OWLEntity;
-import org.semanticweb.owl.model.OWLIndividual;
-import org.semanticweb.owl.model.OWLObjectProperty;
-import org.semanticweb.owl.model.OWLOntology;
-import org.semanticweb.owl.model.OWLOntologyChangeException;
-import org.semanticweb.owl.model.OWLOntologyCreationException;
-import org.semanticweb.owl.model.OWLOntologyManager;
-import org.semanticweb.owl.model.OWLProperty;
+import org.semanticweb.owl.model.*;
 
 /**
  * Reads a diagram and emits an OWL2 ontology
@@ -222,7 +192,19 @@ public class OntologyEmitter {
             }
             
             //HasValue and Some
-            Collection<LineAndProperty> laps = getPropLines( s, OntoNote.Property, null );
+            for( LineAndProperty lap : getPropLines( s, OntoNote.Property, null )) {
+                //Some
+                if( OntoNote.Class.matches( lap.target ) ) {
+                    OWLObjectPropertyExpression objprop = (OWLObjectProperty) lap.property;
+                    OWLObjectSomeRestriction some = factory.getOWLObjectSomeRestriction( objprop, getOWLClass( (Shape) lap.target ) );
+                    OWLAxiom axiom = lap.isSolid ?
+                                         factory.getOWLEquivalentClassesAxiom( cls, some ) :
+                                         factory.getOWLSubClassAxiom( cls, some );                    
+                    addAxiom( axiom );
+                    continue;
+                }
+                
+            }            
         }
     }
     
@@ -384,7 +366,8 @@ public class OntologyEmitter {
                     if( OntoNote.Cardinality.matches( label ) ) {
                         String cardStr = label.text.trim();
                         
-                        
+                        decodeCardinality( lap, cardStr );
+                        continue;
                     }
 
                     if( OntoNote.DataProperty.matches( label )
@@ -401,6 +384,38 @@ public class OntologyEmitter {
         }
         
         return lines;
+    }
+        
+    private void decodeCardinality( LineAndProperty lap, String cardStr ) {
+        cardStr = cardStr.replace( '[', ' ' ).replace( ']', ' ' ).trim();
+        
+        int dotdot = cardStr.indexOf( ".." );
+        
+        if( dotdot < 0 ) {  //single number
+            lap.cardinality = Integer.valueOf( cardStr );
+            return;
+        }
+        
+        if( dotdot == 0 ) {  //dotdot first
+            cardStr = cardStr.replace( '.', ' ' ).trim();
+            lap.cardinalityHigh = Integer.valueOf( cardStr );
+            return;
+        }
+        
+        //dotdot in middle or at end
+        String[] nums = cardStr.split( "\\.\\." );
+        if( nums.length == 1 ) {
+            lap.cardinalityLow = Integer.valueOf( nums[0] );
+            return;            
+        }
+        
+        if( nums.length == 2 ) {
+            lap.cardinalityLow  = Integer.valueOf( nums[0] );
+            lap.cardinalityHigh = Integer.valueOf( nums[1] );
+            return;                        
+        }
+
+        throw new RuntimeException( "Bad cardinality" );
     }
     
     /**
