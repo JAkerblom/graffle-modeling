@@ -303,6 +303,26 @@ public class OntologyEmitter {
         return restrs;
     }
     
+    private void processIndProperties( OWLIndividual ind, Table table ) {
+        for( Shape[] row : table.table ) {
+            Shape prop  = row[0];
+            Shape value = row[1];
+            
+            OWLProperty<?,?> owlProp = getOWLProperty( prop );
+            
+            if( owlProp instanceof OWLDataProperty ) {
+                OWLDataProperty dataProp = (OWLDataProperty) owlProp;
+                OWLConstant constant = getLiteral( value );
+                addAxiom( factory.getOWLDataPropertyAssertionAxiom( ind, dataProp, constant ) );
+            }
+            else if( owlProp instanceof OWLObjectProperty ) {
+                OWLObjectProperty objProp = (OWLObjectProperty) owlProp;
+                OWLIndividual target = getOWLIndividual( value );
+                addAxiom( factory.getOWLObjectPropertyAssertionAxiom( ind, objProp, target ) );
+            }
+        }
+    }
+    
     private void processClassAxioms() {
         for( Shape s : shapeClassCache.keySet() ) {
             OWLClass cls = shapeClassCache.get( s );
@@ -905,13 +925,17 @@ public class OntologyEmitter {
 
         @Override
         public void visitGroupEnd( Group group ) {
-            // TODO Auto-generated method stub
-            
+                        
         }
 
         @Override
         public DiagramVisitor visitGroupStart( Group group ) {
-            // TODO Auto-generated method stub
+            
+            //complex individuals
+            if( OntoNote.Individual.matches( group ) ) {
+                getOWLIndividual( group );
+            }
+
             return this;
         }
 
@@ -982,7 +1006,13 @@ public class OntologyEmitter {
                         makePropertyAssertion( indShape, propShape, valShape );
                     }
                 }                
-            }            
+            }    
+            else if( OntoNote.Properties.matches( table )
+                  && table.parent instanceof Shape
+                  && OntoNote.Individual.matches( (Graphic) table.parent )) {
+                
+                processIndProperties( getOWLIndividual( (Shape) table.parent ), table );
+            }
         }
 
         @Override
