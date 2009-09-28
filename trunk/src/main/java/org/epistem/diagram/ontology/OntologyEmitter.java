@@ -30,7 +30,8 @@ public class OntologyEmitter {
         Individual, Class, DataProperty, ObjectProperty, DataType,
         Extends, Equivalent, Disjoint, DisjointUnion, Key,
         Union, Intersection, Complement, Member, All, PropertyGrid, Property,
-        Cardinality, Properties, Self, Any, Same, Negative
+        Cardinality, Properties, Self, Any, Same, Negative, Range_Domain,
+        Inverse, Chain, Characteristic, InverseObjectProperty
         ;
      
         /** Whether this note matches a graphic */
@@ -74,7 +75,7 @@ public class OntologyEmitter {
     private final Map<Shape,OWLClass>          shapeClassCache    = new HashMap<Shape, OWLClass>();
     private final Map<Shape,OWLIndividual>     shapeIndivCache    = new HashMap<Shape, OWLIndividual>();
     private final Map<Shape,OWLDataProperty>   shapeDataPropCache = new HashMap<Shape, OWLDataProperty>();
-    private final Map<Shape,OWLObjectProperty> shapeObjPropCache  = new HashMap<Shape, OWLObjectProperty>();
+    private final Map<Shape,OWLObjectPropertyExpression> shapeObjPropCache  = new HashMap<Shape, OWLObjectPropertyExpression>();
     private final Map<Shape,OWLDataType>       shapeDatatypeCache = new HashMap<Shape, OWLDataType>();    
     private final Map<Shape,OWLConstant>       shapeConstants     = new HashMap<Shape, OWLConstant>();
 
@@ -138,8 +139,109 @@ public class OntologyEmitter {
         processClassAxioms();
         processClassExpressions();
         processIndividualAxioms();
+        processObjProps();
         
         cleanupIndividuals();
+    }
+    
+    private void processObjProps() {
+        for( Shape s : shapeObjPropCache.keySet() ) {
+            OWLObjectPropertyExpression prop = shapeObjPropCache.get( s );
+            
+            //SubObjectPropertyOf
+            for( OWLObjectPropertyExpression p : getLineTargetObjProps( s, OntoNote.Extends, true )) {
+                addAxiom( factory.getOWLSubObjectPropertyAxiom( prop, p ) );
+            }
+            
+            //EquivalentObjectProperties
+            for( OWLObjectPropertyExpression p : getLineTargetObjProps( s, OntoNote.Equivalent, true )) {
+                HashSet<OWLObjectPropertyExpression> set = new HashSet<OWLObjectPropertyExpression>();
+                set.add( p );
+                set.add( prop );
+                addAxiom( factory.getOWLEquivalentObjectPropertiesAxiom( set ));
+            }
+            
+            //domains
+            for( OWLClass cls : getLineTargetClasses( s, OntoNote.Range_Domain, null, false )) {
+                addAxiom( factory.getOWLObjectPropertyDomainAxiom( prop, cls ) );
+            }
+
+            //ranges
+            for( OWLClass cls : getLineTargetClasses( s, OntoNote.Range_Domain, null, true )) {
+                addAxiom( factory.getOWLObjectPropertyRangeAxiom( prop, cls ) );
+            }
+            
+            //disjoint
+            for( Set<OWLObjectPropertyExpression> dises : getDisjointObjProps( s )) {
+                addAxiom( factory.getOWLDisjointObjectPropertiesAxiom( dises ) );
+            }
+            
+            //inverse
+            for( OWLObjectPropertyExpression p : getLineTargetObjProps( s, OntoNote.Inverse, true )) {
+                addAxiom( factory.getOWLInverseObjectPropertiesAxiom( prop, p ));
+            }
+            
+            //chains
+            for( Connector conn : s.incoming ) {
+                if( OntoNote.Chain.matches( (Graphic) conn ) && conn instanceof Line) {
+                    Line line = (Line) conn;
+                    
+                    List<OWLObjectPropertyExpression> props = new ArrayList<OWLObjectPropertyExpression>();
+                    
+                    OWLObjectPropertyExpression p = shapeObjPropCache.get( conn.getTail() );
+                    if( p == null ) graphicException( line, "Chain start is not an Object Property" );
+                    props.add( p );
+                    
+                    for( Shape label : line.labels ) {
+                        p = shapeObjPropCache.get( label );
+                        if( p == null ) graphicException( label, "Chain label is not an Object Property" );
+                        
+                        props.add( p );
+                    }
+                    
+                    addAxiom( factory.getOWLObjectPropertyChainSubPropertyAxiom( props, prop ));
+                }
+                
+            }
+            
+            //natures
+            for( Graphic g : getLineTargets( s, OntoNote.Characteristic, null, false )) {
+                if( g instanceof Shape ) {
+                    String t = makeName( (Shape) g, "Property Characteristic");
+                    
+                    if( "functional".equalsIgnoreCase( t ) ) {
+                        addAxiom( factory.getOWLFunctionalObjectPropertyAxiom( prop ) );
+                        continue;
+                    }
+                    else if( "inverse-functional".equalsIgnoreCase( t ) ) {
+                        addAxiom( factory.getOWLInverseFunctionalObjectPropertyAxiom( prop ) );
+                        continue;
+                    } 
+                    else if( "reflexive".equalsIgnoreCase( t ) ) {
+                        addAxiom( factory.getOWLReflexiveObjectPropertyAxiom( prop ) );
+                        continue;
+                    } 
+                    else if( "irreflexive".equalsIgnoreCase( t ) ) {
+                        addAxiom( factory.getOWLIrreflexiveObjectPropertyAxiom( prop ) );
+                        continue;
+                    } 
+                    else if( "symmetric".equalsIgnoreCase( t ) ) {
+                        addAxiom( factory.getOWLSymmetricObjectPropertyAxiom( prop ) );
+                        continue;
+                    } 
+                    else if( "asymmetric".equalsIgnoreCase( t ) ) {
+                        addAxiom( factory.getOWLAntiSymmetricObjectPropertyAxiom( prop ) );
+                        continue;
+                    } 
+                    else if( "transitive".equalsIgnoreCase( t ) ) {
+                        addAxiom( factory.getOWLTransitiveObjectPropertyAxiom( prop ) );
+                        continue;
+                    }
+                }
+               
+                graphicException( g, "Not a valid object property characteristic" );
+            }
+        }
     }
     
     private void processIndividualAxioms() {
@@ -470,6 +572,31 @@ public class OntologyEmitter {
         return disGroups;
     }
     
+    private Collection<Set<OWLObjectPropertyExpression>> getDisjointObjProps( Shape start ) {
+        Collection<Set<OWLObjectPropertyExpression>> disGroups = new HashSet<Set<OWLObjectPropertyExpression>>();
+        
+        for( Connector line : start.outgoing ) { 
+            //no need to check incoming since there will always be at least one
+            //shape at the tail end of a line in a group of disjoints
+            
+            if( OntoNote.Disjoint.matches( (Graphic) line) ) {
+                Collection<Shape> disShapes = gatherDisjoints( line, null );
+                if( disShapes.isEmpty() ) continue;
+                
+                Set<OWLObjectPropertyExpression> dis = new HashSet<OWLObjectPropertyExpression>();
+                disGroups.add( dis );
+                for( Shape s : disShapes ) {
+                    OWLObjectPropertyExpression i = shapeObjPropCache.get( s );
+                    if( i == null ) graphicException( s, "Target of disjoint line is not an Object Property" );
+
+                    dis.add( i );
+                }
+            }
+        }
+        
+        return disGroups;
+    }
+    
     /**
      * Gather all the shapes that are reachable via the given line
      */
@@ -528,7 +655,21 @@ public class OntologyEmitter {
         
         return classes;
     }
-
+    
+    private Set<OWLObjectPropertyExpression> getLineTargetObjProps( Shape origin, OntoNote note, boolean outgoing ) {
+        Collection<Graphic> shapes = getLineTargets( origin, note, null, outgoing );
+        if( shapes.isEmpty() ) return Collections.emptySet();
+        
+        Set<OWLObjectPropertyExpression> props = new HashSet<OWLObjectPropertyExpression>();
+        for( Graphic s : shapes ) {            
+            OWLObjectPropertyExpression prop = (s instanceof Shape) ? shapeObjPropCache.get( (Shape) s ) : null;
+            if( prop == null ) graphicException( s, "Target of " + note + " is not an Object Property" );
+            props.add( prop );
+        }
+        
+        return props;
+    }
+    
     private Set<OWLIndividual> getLineTargetIndivs( Graphic origin, OntoNote note, Boolean solid, boolean outgoing  ) {
         Collection<Graphic> shapes = getLineTargets( origin, note, solid, outgoing );
         if( shapes.isEmpty() ) return Collections.emptySet();
@@ -754,13 +895,18 @@ public class OntologyEmitter {
         return p;
     }
 
-    private OWLObjectProperty getOWLObjectProperty( Shape s ) {
-        OWLObjectProperty p = shapeObjPropCache.get( s );
+    private OWLObjectPropertyExpression getOWLObjectProperty( Shape s ) {
+        OWLObjectPropertyExpression p = shapeObjPropCache.get( s );
         if( p == null ) {            
             URI uri = uriFromString( makeName( s, "Object Property" ));  
             if( uri == null ) return null;
-            
+                        
             p = getOWLObjectProperty( uri );
+            
+            if( OntoNote.InverseObjectProperty.matches( s ) ) {
+                p = factory.getOWLObjectPropertyInverse( p );
+            }
+
             shapeObjPropCache.put( s, p );
         }
         
@@ -784,8 +930,10 @@ public class OntologyEmitter {
         OWLProperty<?,?> prop = shapeDataPropCache.get( s );
         if( prop != null ) return prop;
         
-        prop = shapeObjPropCache.get( s );
-        if( prop != null ) return prop;
+        OWLObjectPropertyExpression opex = shapeObjPropCache.get( s );
+        if( opex != null && opex instanceof OWLObjectProperty ) {
+            return (OWLObjectProperty) opex;
+        }
         
         graphicException( s, "Not a data or object property" );
         return null;
@@ -1074,7 +1222,8 @@ public class OntologyEmitter {
                 return;
             }
 
-            if( OntoNote.ObjectProperty.matches( shape ) ) {
+            if( OntoNote.ObjectProperty.matches( shape ) 
+             || OntoNote.InverseObjectProperty.matches( shape ) ) {
                 getOWLObjectProperty( shape );
                 return;
             }
