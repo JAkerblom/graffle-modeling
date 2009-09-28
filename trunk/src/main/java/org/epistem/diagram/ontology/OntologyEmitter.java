@@ -30,7 +30,7 @@ public class OntologyEmitter {
         Individual, Class, DataProperty, ObjectProperty, DataType,
         Extends, Equivalent, Disjoint, DisjointUnion, Key,
         Union, Intersection, Complement, Member, All, PropertyGrid, Property,
-        Cardinality, Properties, Self, Any
+        Cardinality, Properties, Self, Any, Same, Negative
         ;
      
         /** Whether this note matches a graphic */
@@ -77,7 +77,7 @@ public class OntologyEmitter {
     private final Map<Shape,OWLObjectProperty> shapeObjPropCache  = new HashMap<Shape, OWLObjectProperty>();
     private final Map<Shape,OWLDataType>       shapeDatatypeCache = new HashMap<Shape, OWLDataType>();    
     private final Map<Shape,OWLConstant>       shapeConstants     = new HashMap<Shape, OWLConstant>();
-    
+
     //connectors that have already been processed as part of a disjoint axiom
     private final Set<Connector> disjointConnectors = new HashSet<Connector>();
     
@@ -137,8 +137,68 @@ public class OntologyEmitter {
 
         processClassAxioms();
         processClassExpressions();
+        processIndividualAxioms();
         
         cleanupIndividuals();
+    }
+    
+    private void processIndividualAxioms() {
+        for( Shape s : shapeIndivCache.keySet() ) {
+            OWLIndividual individual = shapeIndivCache.get( s );
+            
+            //Same Individuals
+            for( OWLIndividual i : getLineTargetIndivs( s, OntoNote.Same, null, true )) {
+                addAxiom( factory.getOWLSameIndividualsAxiom( 
+                              new HashSet<OWLIndividual>( 
+                                  Arrays.asList( 
+                                      new OWLIndividual[] { individual, i } ) ) ) );
+            }
+            
+            //Different individuals
+            for( Set<OWLIndividual> dises : getDisjointIndividuals( s )) {
+                addAxiom( factory.getOWLDifferentIndividualsAxiom( dises ) );
+            }
+            
+            //Property Assertions
+            for( LineAndProperty lap : getPropLines( s, OntoNote.Property, null )) {
+                //Property table
+                if( lap.target instanceof Table && OntoNote.Properties.matches( lap.target )) {
+                    processIndProperties( individual, (Table) lap.target, false );                    
+                }
+                else {                    
+                    if( lap.property instanceof OWLDataProperty ) {
+                        OWLDataProperty dataProp = (OWLDataProperty) lap.property;
+                        OWLConstant constant = getLiteral( (Shape) lap.target );
+                        addAxiom( factory.getOWLDataPropertyAssertionAxiom( individual, dataProp, constant ));
+                    }
+                    else if( lap.property instanceof OWLObjectProperty ) {
+                        OWLObjectProperty objProp = (OWLObjectProperty) lap.property;
+                        OWLIndividual target = getOWLIndividual( (Shape) lap.target );
+                        addAxiom( factory.getOWLObjectPropertyAssertionAxiom( individual, objProp, target ));
+                    }
+                }
+            }            
+
+            //Negative Property Assertions
+            for( LineAndProperty lap : getPropLines( s, OntoNote.Negative, null )) {
+                //Property table
+                if( lap.target instanceof Table && OntoNote.Properties.matches( lap.target )) {
+                    processIndProperties( individual, (Table) lap.target, true );                    
+                }
+                else {                    
+                    if( lap.property instanceof OWLDataProperty ) {
+                        OWLDataProperty dataProp = (OWLDataProperty) lap.property;
+                        OWLConstant constant = getLiteral( (Shape) lap.target );
+                        addAxiom( factory.getOWLNegativeDataPropertyAssertionAxiom( individual, dataProp, constant ));
+                    }
+                    else if( lap.property instanceof OWLObjectProperty ) {
+                        OWLObjectProperty objProp = (OWLObjectProperty) lap.property;
+                        OWLIndividual target = getOWLIndividual( (Shape) lap.target );
+                        addAxiom( factory.getOWLNegativeObjectPropertyAssertionAxiom( individual, objProp, target ));
+                    }
+                }
+            }            
+        }
     }
     
     private void processClassExpressions() {
@@ -181,6 +241,11 @@ public class OntologyEmitter {
             indivs = getLineTargetIndivs( s, OntoNote.Member, false, true );
             if( ! indivs.isEmpty() ) {
                 addAxiom( factory.getOWLSubClassAxiom( cls, factory.getOWLObjectOneOf( indivs )));
+            }
+
+            //Class Assertions
+            for( OWLIndividual individual : getLineTargetIndivs( s, OntoNote.Member, null, false )) {
+                addAxiom( factory.getOWLClassAssertionAxiom( individual, cls ) );
             }
             
             //All
@@ -303,7 +368,7 @@ public class OntologyEmitter {
         return restrs;
     }
     
-    private void processIndProperties( OWLIndividual ind, Table table ) {
+    private void processIndProperties( OWLIndividual ind, Table table, boolean negative ) {
         for( Shape[] row : table.table ) {
             Shape prop  = row[0];
             Shape value = row[1];
@@ -313,12 +378,16 @@ public class OntologyEmitter {
             if( owlProp instanceof OWLDataProperty ) {
                 OWLDataProperty dataProp = (OWLDataProperty) owlProp;
                 OWLConstant constant = getLiteral( value );
-                addAxiom( factory.getOWLDataPropertyAssertionAxiom( ind, dataProp, constant ) );
+                addAxiom( negative ?
+                              factory.getOWLNegativeDataPropertyAssertionAxiom( ind, dataProp, constant ) :
+                              factory.getOWLDataPropertyAssertionAxiom( ind, dataProp, constant ) );
             }
             else if( owlProp instanceof OWLObjectProperty ) {
                 OWLObjectProperty objProp = (OWLObjectProperty) owlProp;
                 OWLIndividual target = getOWLIndividual( value );
-                addAxiom( factory.getOWLObjectPropertyAssertionAxiom( ind, objProp, target ) );
+                addAxiom( negative ?
+                              factory.getOWLNegativeObjectPropertyAssertionAxiom( ind, objProp, target ) :
+                              factory.getOWLObjectPropertyAssertionAxiom( ind, objProp, target ) );
             }
         }
     }
@@ -369,6 +438,31 @@ public class OntologyEmitter {
                     if( cls == null ) graphicException( s, "Target of disjoint line is not an OWL class" );
 
                     disClasses.add( cls );
+                }
+            }
+        }
+        
+        return disGroups;
+    }
+    
+    private Collection<Set<OWLIndividual>> getDisjointIndividuals( Shape start ) {
+        Collection<Set<OWLIndividual>> disGroups = new HashSet<Set<OWLIndividual>>();
+        
+        for( Connector line : start.outgoing ) { 
+            //no need to check incoming since there will always be at least one
+            //shape at the tail end of a line in a group of disjoint individuals
+            
+            if( OntoNote.Disjoint.matches( (Graphic) line) ) {
+                Collection<Shape> disShapes = gatherDisjoints( line, null );
+                if( disShapes.isEmpty() ) continue;
+                
+                Set<OWLIndividual> disIndivs = new HashSet<OWLIndividual>();
+                disGroups.add( disIndivs );
+                for( Shape s : disShapes ) {
+                    OWLIndividual i = shapeIndivCache.get( s );
+                    if( i == null ) graphicException( s, "Target of disjoint line is not an OWL individual" );
+
+                    disIndivs.add( i );
                 }
             }
         }
@@ -435,7 +529,7 @@ public class OntologyEmitter {
         return classes;
     }
 
-    private Set<OWLIndividual> getLineTargetIndivs( Shape origin, OntoNote note, Boolean solid, boolean outgoing  ) {
+    private Set<OWLIndividual> getLineTargetIndivs( Graphic origin, OntoNote note, Boolean solid, boolean outgoing  ) {
         Collection<Graphic> shapes = getLineTargets( origin, note, solid, outgoing );
         if( shapes.isEmpty() ) return Collections.emptySet();
         
@@ -542,7 +636,7 @@ public class OntologyEmitter {
      * @param outgoing true for outgoing, false for incoming
      * @return graphics targeted by matching lines 
      */
-    private Collection<Graphic> getLineTargets( Shape origin, OntoNote note, Boolean solid, boolean outgoing ) {
+    private Collection<Graphic> getLineTargets( Graphic origin, OntoNote note, Boolean solid, boolean outgoing ) {
         Set<Graphic> targets = new HashSet<Graphic>();
         
         for( Connector line : (outgoing ? origin.outgoing : origin.incoming )) {
@@ -1011,7 +1105,7 @@ public class OntologyEmitter {
                   && table.parent instanceof Shape
                   && OntoNote.Individual.matches( (Graphic) table.parent )) {
                 
-                processIndProperties( getOWLIndividual( (Shape) table.parent ), table );
+                processIndProperties( getOWLIndividual( (Shape) table.parent ), table, false );
             }
         }
 
