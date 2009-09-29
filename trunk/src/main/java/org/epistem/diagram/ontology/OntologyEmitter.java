@@ -934,6 +934,19 @@ public class OntologyEmitter {
         return ind;
     }
     
+    private OWLDataType getOWLDataType( Shape s ) {
+        OWLDataType type = shapeDatatypeCache.get( s );
+        if( type == null ) {
+            URI uri = uriFromString( makeName( s, "Datatype" ));  
+            if( uri == null ) return null;
+            
+            type = getOWLDataType( uri );
+            shapeDatatypeCache.put( s, type );
+        }
+        
+        return type;
+    }
+    
     private OWLIndividual getOWLIndividual( URI name ) {
         OWLIndividual i = individualCache.get( name );
         if( i == null ) {
@@ -1327,6 +1340,11 @@ public class OntologyEmitter {
             if( OntoNote.ObjectProperty.matches( shape ) 
              || OntoNote.InverseObjectProperty.matches( shape ) ) {
                 getOWLObjectProperty( shape );
+                return;
+            }
+            
+            if( OntoNote.DataType.matches( shape ) ) {
+                getOWLDataType( shape );
                 return;
             }
         }
