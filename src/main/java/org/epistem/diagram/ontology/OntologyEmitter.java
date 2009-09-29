@@ -140,8 +140,57 @@ public class OntologyEmitter {
         processClassExpressions();
         processIndividualAxioms();
         processObjProps();
+        processDataProps();
         
         cleanupIndividuals();
+    }
+    
+    private void processDataProps() {
+        for( Shape s : shapeDataPropCache.keySet() ) {
+            OWLDataProperty prop = shapeDataPropCache.get( s );
+            
+            //SubObjectPropertyOf
+            for( OWLDataProperty p : getLineTargetDataProps( s, OntoNote.Extends, true )) {
+                addAxiom( factory.getOWLSubDataPropertyAxiom( prop, p ) );
+            }
+            
+            //EquivalentObjectProperties
+            for( OWLDataProperty p : getLineTargetDataProps( s, OntoNote.Equivalent, true )) {
+                HashSet<OWLDataProperty> set = new HashSet<OWLDataProperty>();
+                set.add( p );
+                set.add( prop );
+                addAxiom( factory.getOWLEquivalentDataPropertiesAxiom( set ));
+            }
+            
+            //domains
+            for( OWLClass cls : getLineTargetClasses( s, OntoNote.Range_Domain, null, false )) {
+                addAxiom( factory.getOWLDataPropertyDomainAxiom( prop, cls ) );
+            }
+
+            //ranges
+            for( OWLDataRange range : getLineTargetRanges( s, OntoNote.Range_Domain, null, true )) {
+                addAxiom( factory.getOWLDataPropertyRangeAxiom( prop, range ) );
+            }
+            
+            //disjoint
+            for( Set<OWLDataProperty> dises : getDisjointDataProps( s )) {
+                addAxiom( factory.getOWLDisjointDataPropertiesAxiom( dises ) );
+            }
+      
+            //natures
+            for( Graphic g : getLineTargets( s, OntoNote.Characteristic, null, false )) {
+                if( g instanceof Shape ) {
+                    String t = makeName( (Shape) g, "Property Characteristic");
+                    
+                    if( "functional".equalsIgnoreCase( t ) ) {
+                        addAxiom( factory.getOWLFunctionalDataPropertyAxiom( prop ) );
+                        continue;
+                    }
+                }
+               
+                graphicException( g, "Not a valid data property characteristic" );
+            }
+        }
     }
     
     private void processObjProps() {
@@ -572,6 +621,31 @@ public class OntologyEmitter {
         return disGroups;
     }
     
+    private Collection<Set<OWLDataProperty>> getDisjointDataProps( Shape start ) {
+        Collection<Set<OWLDataProperty>> disGroups = new HashSet<Set<OWLDataProperty>>();
+        
+        for( Connector line : start.outgoing ) { 
+            //no need to check incoming since there will always be at least one
+            //shape at the tail end of a line in a group of disjoints
+            
+            if( OntoNote.Disjoint.matches( (Graphic) line) ) {
+                Collection<Shape> disShapes = gatherDisjoints( line, null );
+                if( disShapes.isEmpty() ) continue;
+                
+                Set<OWLDataProperty> dis = new HashSet<OWLDataProperty>();
+                disGroups.add( dis );
+                for( Shape s : disShapes ) {
+                    OWLDataProperty i = shapeDataPropCache.get( s );
+                    if( i == null ) graphicException( s, "Target of disjoint line is not an Data Property" );
+
+                    dis.add( i );
+                }
+            }
+        }
+        
+        return disGroups;
+    }
+    
     private Collection<Set<OWLObjectPropertyExpression>> getDisjointObjProps( Shape start ) {
         Collection<Set<OWLObjectPropertyExpression>> disGroups = new HashSet<Set<OWLObjectPropertyExpression>>();
         
@@ -642,6 +716,20 @@ public class OntologyEmitter {
         return shapes;
     }
     
+    private Set<OWLDataRange> getLineTargetRanges( Shape origin, OntoNote note, Boolean solid, boolean outgoing  ) {
+        Collection<Graphic> shapes = getLineTargets( origin, note, solid, outgoing );
+        if( shapes.isEmpty() ) return Collections.emptySet();
+        
+        Set<OWLDataRange> classes = new HashSet<OWLDataRange>();
+        for( Graphic s : shapes ) {            
+            OWLDataRange cls = (s instanceof Shape) ? shapeClassCache.get( (Shape) s ) : null;
+            if( cls == null ) graphicException( s, "Target of " + note + " is not an OWL class" );
+            classes.add( cls );
+        }
+        
+        return classes;
+    }
+    
     private Set<OWLClass> getLineTargetClasses( Shape origin, OntoNote note, Boolean solid, boolean outgoing  ) {
         Collection<Graphic> shapes = getLineTargets( origin, note, solid, outgoing );
         if( shapes.isEmpty() ) return Collections.emptySet();
@@ -654,6 +742,20 @@ public class OntologyEmitter {
         }
         
         return classes;
+    }
+    
+    private Set<OWLDataProperty> getLineTargetDataProps( Shape origin, OntoNote note, boolean outgoing ) {
+        Collection<Graphic> shapes = getLineTargets( origin, note, null, outgoing );
+        if( shapes.isEmpty() ) return Collections.emptySet();
+        
+        Set<OWLDataProperty> props = new HashSet<OWLDataProperty>();
+        for( Graphic s : shapes ) {            
+            OWLDataProperty prop = (s instanceof Shape) ? shapeDataPropCache.get( (Shape) s ) : null;
+            if( prop == null ) graphicException( s, "Target of " + note + " is not an Data Property" );
+            props.add( prop );
+        }
+        
+        return props;
     }
     
     private Set<OWLObjectPropertyExpression> getLineTargetObjProps( Shape origin, OntoNote note, boolean outgoing ) {
