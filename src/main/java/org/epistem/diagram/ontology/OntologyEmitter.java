@@ -76,7 +76,7 @@ public class OntologyEmitter {
     private final Map<Shape,OWLIndividual>     shapeIndivCache    = new HashMap<Shape, OWLIndividual>();
     private final Map<Shape,OWLDataProperty>   shapeDataPropCache = new HashMap<Shape, OWLDataProperty>();
     private final Map<Shape,OWLObjectPropertyExpression> shapeObjPropCache  = new HashMap<Shape, OWLObjectPropertyExpression>();
-    private final Map<Shape,OWLDataType>       shapeDatatypeCache = new HashMap<Shape, OWLDataType>();    
+    private final Map<Shape,OWLDataRange>      shapeDataRangeCache = new HashMap<Shape, OWLDataRange>();    
     private final Map<Shape,OWLConstant>       shapeConstants     = new HashMap<Shape, OWLConstant>();
 
     //connectors that have already been processed as part of a disjoint axiom
@@ -720,14 +720,14 @@ public class OntologyEmitter {
         Collection<Graphic> shapes = getLineTargets( origin, note, solid, outgoing );
         if( shapes.isEmpty() ) return Collections.emptySet();
         
-        Set<OWLDataRange> classes = new HashSet<OWLDataRange>();
+        Set<OWLDataRange> types = new HashSet<OWLDataRange>();
         for( Graphic s : shapes ) {            
-            OWLDataRange cls = (s instanceof Shape) ? shapeClassCache.get( (Shape) s ) : null;
-            if( cls == null ) graphicException( s, "Target of " + note + " is not an OWL class" );
-            classes.add( cls );
+            OWLDataRange range = (s instanceof Shape) ? shapeDataRangeCache.get( (Shape) s ) : null;
+            if( range == null ) graphicException( s, "Target of " + note + " is not an OWL class" );
+            types.add( range );
         }
         
-        return classes;
+        return types;
     }
     
     private Set<OWLClass> getLineTargetClasses( Shape origin, OntoNote note, Boolean solid, boolean outgoing  ) {
@@ -934,17 +934,29 @@ public class OntologyEmitter {
         return ind;
     }
     
-    private OWLDataType getOWLDataType( Shape s ) {
-        OWLDataType type = shapeDatatypeCache.get( s );
+    private OWLDataRange getOWLDataType( Shape s ) {
+        OWLDataRange type = shapeDataRangeCache.get( s );
         if( type == null ) {
             URI uri = uriFromString( makeName( s, "Datatype" ));  
             if( uri == null ) return null;
-            
+
             type = getOWLDataType( uri );
-            shapeDatatypeCache.put( s, type );
+            shapeDataRangeCache.put( s, type );
         }
         
         return type;
+    }
+    
+    private OWLDataType getOWLDataType( URI name ) {
+        OWLDataType i = datatypeCache.get( name );
+        if( i == null ) {
+            i = factory.getOWLDataType( name );
+            if( isLocalName( name ) ) declare( i );
+
+            datatypeCache.put( name, i );
+        }
+        
+        return i;
     }
     
     private OWLIndividual getOWLIndividual( URI name ) {
